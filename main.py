@@ -1,150 +1,158 @@
-"""
-Python-based agentic workflow powered by Anthropic 3.7 Sonnet & LangGraph.
-This agent is capable of using Tavily web search, and executing code;
-It also has access to Wikipedia info while incorporating memory.
-"""
+# app.py
 
-import os
-from typing import Annotated
-from dotenv import load_dotenv
-from typing_extensions import TypedDict
-from langchain_anthropic import ChatAnthropic
-from langgraph.graph import MessagesState, START, END, StateGraph
-from langgraph.graph.message import add_messages
-from langgraph.prebuilt import ToolNode
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from langchain.tools import tool
-from langgraph.checkpoint.memory import MemorySaver
-from langgraph.store.memory import InMemoryStore
-from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
+from typing import List, Dict, Any
+import uuid
+import json
+import asyncio
+import logging
+from app import langgraph_app
 
-from tools.prompt import get_prompt
-from tools.wiki_tools import create_wikipedia_tool
-from tools.search_tools import create_tavily_search_tool
-from tools.code_tools import get_code_tools
+# Initialize logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-load_dotenv()
+# Initialize FastAPI
+app = FastAPI(title="AI by Design Copilot")
 
-anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
-if not anthropic_api_key:
-    print("ANTHROPIC_API_KEY environment variable not set.")
-    print(
-        "Please set the ANTHROPIC_API_KEY environment variable in your .env file"
-    )
+# Serve static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
-tavily_api_key = os.getenv("TAVILY_API_KEY")
-if not tavily_api_key:
-    print("TAVILY_API_KEY environment variable not set.")
-    print(
-        "Please set the TAVILY_API_KEY environment variable in your .env file"
-    )
+# Templates
+templates = Jinja2Templates(directory="templates")
 
-if anthropic_api_key:
+# Store active connections
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: Dict[str, WebSocket] = {}
+        
+    async def connect(self, websocket: WebSocket, client_id: str):
+        await websocket.accept()
+        self.active_connections[client_id] = websocket
+        
+    def disconnect(self, client_id: str):
+        if client_id in self.active_connections:
+            del self.active_connections[client_id]
+
+manager = ConnectionManager()
+
+# Models
+class Message(BaseModel):
+    content: str
+    role: str = "user"
+    
+class Conversation(BaseModel):
+    id: str = None
+    messages: List[Dict[str, Any]] = []
+
+# Store conversations
+conversations: Dict[str, Conversation] = {}
+
+# Routes
+@app.get("/", response_class=HTMLResponse)
+async def get_root(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+
+@app.post("/api/conversations")
+async def create_conversation():
+    conversation_id = str(uuid.uuid4())
+    conversations[conversation_id] = Conversation(id=conversation_id)
+    return {"conversation_id": conversation_id}
+
+@app.websocket("/ws/{conversation_id}")
+async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
+    await manager.connect(websocket, conversation_id)
+    
+    # Initialize conversation if it doesn't exist
+    if conversation_id not in conversations:
+        conversations[conversation_id] = Conversation(id=conversation_id)
+    
     try:
-        llm = ChatAnthropic(
-            model_name="claude-3-7-sonnet-latest",
-            anthropic_api_key=anthropic_api_key,
-            max_tokens=1500,
-            thinking={
-                "type": "enabled",
-                "budget_tokens": 1024
-            })
-        print("Successfully initialized Claude model")
+        while True:
+            data = await websocket.receive_text()
+            try:
+                payload = json.loads(data)
+                
+                if payload.get("type") == "message":
+                    message_content = payload.get("content", "")
+                    
+                    # Add user message to conversation history
+                    conversations[conversation_id].messages.append({
+                        "role": "user",
+                        "content": message_content
+                    })
+                    
+                    # Send acknowledgment
+                    await websocket.send_text(json.dumps({
+                        "type": "message_received",
+                        "message_id": payload.get("id", "")
+                    }))
+                    
+                    # Process message using LangGraph
+                    async def process_and_stream():
+                        config = {"configurable": {"thread_id": conversation_id}}
+                        partial_response = ""
+                        
+                        try:
+                            for event in langgraph_app.stream({"messages": [("user", message_content)]}, config):
+                                for key, value in event.items():
+                                    if "messages" in value and value["messages"]:
+                                        ai_message = value["messages"][-1]
+                                        if hasattr(ai_message, "content"):
+                                            content = ai_message.content
+                                            if content != partial_response:
+                                                # Get the difference (new content)
+                                                diff = content[len(partial_response):]
+                                                partial_response = content
+                                                
+                                                # Send the new content chunk
+                                                await websocket.send_text(json.dumps({
+                                                    "type": "message_chunk",
+                                                    "content": diff,
+                                                    "is_complete": False
+                                                }))
+                                                
+                                                # Small delay to avoid overwhelming the client
+                                                await asyncio.sleep(0.01)
+                            
+                            # Add final response to conversation history
+                            conversations[conversation_id].messages.append({
+                                "role": "assistant",
+                                "content": partial_response
+                            })
+                            
+                            # Send completion signal
+                            await websocket.send_text(json.dumps({
+                                "type": "message_complete",
+                                "content": partial_response
+                            }))
+                        
+                        except Exception as e:
+                            logger.error(f"Error in streaming process: {e}")
+                            await websocket.send_text(json.dumps({
+                                "type": "error",
+                                "content": f"An error occurred while processing your message: {str(e)}"
+                            }))
+                    
+                    # Start processing in background
+                    asyncio.create_task(process_and_stream())
+            
+            except json.JSONDecodeError:
+                logger.error("Received invalid JSON from WebSocket")
+            except Exception as e:
+                logger.error(f"Error processing WebSocket message: {e}")
+    
+    except WebSocketDisconnect:
+        manager.disconnect(conversation_id)
     except Exception as e:
-        print(f"Failed to initialize Claude model: {e}")
-        raise RuntimeError(f"Failed to initialize Claude model: {e}")
-else:
-    raise ValueError("ANTHROPIC_API_KEY environment variable not set")
-
-if tavily_api_key:
-    tavily_search_tool = create_tavily_search_tool(tavily_api_key)
-
-wikipedia_tool = create_wikipedia_tool()
-code_tools = get_code_tools()
-
-tools = [wikipedia_tool, tavily_search_tool] + code_tools
-tool_node = ToolNode(tools)
-model_with_tools = llm.bind_tools(tools)
-prompt_template = ChatPromptTemplate.from_messages([
-    ("system", get_prompt()),
-    MessagesPlaceholder(variable_name="messages"),
-    ])
-model_chain = prompt_template | model_with_tools
-
-
-def should_continue(state: MessagesState) -> str:
-    """
-    Determines whether the agent should continue processing or end.
-    Args:
-        state: The current state of the graph, containing messages.
-    Returns:
-        "tools" if the last message contains tool calls, END otherwise.
-    """
-    last_message = state["messages"][-1]
-    if isinstance(last_message, AIMessage) and hasattr(last_message, 'tool_calls') and last_message.tool_calls:
-        if any(tc.get('name') in [t.name for t in tools] for tc in last_message.tool_calls):
-             return "tools"
-
-    if isinstance(last_message, AIMessage) and last_message.additional_kwargs.get("tool_calls"):
-         pass
-
-    return END
-
-
-def call_model(state: MessagesState) -> dict:
-    """
-    The main agent node function. Invokes the LLM.
-    Args:
-        state: The current state of the graph.
-    Returns:
-        A dictionary containing the updated messages list.
-    """
-    messages = state["messages"]
-    response = model_chain.invoke({"messages": messages})
-    return {"messages": [response]}
-
-
-workflow = StateGraph(MessagesState)
-workflow.add_node("chatbot", call_model)
-workflow.add_node("tools", tool_node)
-workflow.set_entry_point("chatbot")
-workflow.add_conditional_edges(
-    "chatbot",
-    should_continue,
-    {
-        "tools": "tools", 
-        END: END
-    }
-)
-workflow.add_edge("tools", "chatbot")
-memory = MemorySaver()
-store = InMemoryStore()
-app = workflow.compile(checkpointer=memory, store=store)
-
-
-def stream_memory_responses(user_input: str, thread_id: str):
-    """
-    Streams all events from the graph execution for a single input.
-    Args:
-        user_input: The user's input string.
-        thread_id: The unique identifier for the conversation thread.
-    """
-    config = {"configurable": {"thread_id": thread_id}}
-    print(f"\n--- Streaming Events (Thread: {thread_id}, Input: '{user_input}') ---")
-
-    for event in app.stream({"messages": [("user", user_input)]}, config):
-
-        for value in event.values():
-            if "messages" in value and value["messages"]:
-                print("Agent:", value["messages"])
-
+        logger.error(f"WebSocket error: {e}")
+        manager.disconnect(conversation_id)
 
 if __name__ == "__main__":
-    print("Starting Agentic LangGraph Script...")
-
-    thread3_id = "thread-example-3-stream"
-    # stream_memory_responses("What is the Colosseum?", thread3_id)
-    stream_memory_responses("Write a python function that calculates the factorial of 100", thread3_id)
-    # stream_memory_responses("What's the weather today in queens, nyc?", thread3_id)
-
-    print("\nScript finished.")
+    import uvicorn
+    logger.info("Starting AI by Design Copilot server")
+    uvicorn.run(app, host="0.0.0.0", port=8000)
