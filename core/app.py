@@ -1,8 +1,4 @@
-"""
-Python-based agentic workflow powered by Anthropic 3.7 Sonnet & LangGraph.
-This agent is capable of using Tavily web search, and executing code;
-It also has access to Wikipedia info while incorporating memory.
-"""
+# core/app.py
 
 import os
 from typing import Annotated

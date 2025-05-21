@@ -1,4 +1,8 @@
-# app.py
+"""
+Python-based agentic workflow powered by Anthropic 3.7 Sonnet & LangGraph.
+This agent is capable of using Tavily web search, and executing code;
+It also has access to Wikipedia info while incorporating memory.
+"""
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -10,7 +14,7 @@ import uuid
 import json
 import asyncio
 import logging
-from app import langgraph_app
+from core.app import langgraph_app
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)

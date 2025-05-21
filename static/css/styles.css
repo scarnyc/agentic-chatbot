@@ -170,33 +170,6 @@ code {
     font-family: 'Consolas', 'Courier New', monospace;
 }
 
-/* Scroll to top button */
-.scroll-button {
-    position: fixed;
-    bottom: 6rem;
-    right: 1.5rem;
-    width: 3rem;
-    height: 3rem;
-    background-color: var(--accent);
-    color: white;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    opacity: 0;
-    transition: opacity 0.3s ease;
-}
-
-.scroll-button.visible {
-    opacity: 1;
-}
-
-.scroll-button i {
-    font-size: 1.5rem;
-}
-
 /* Responsive adjustments */
 @media (max-width: 768px) {
     .message-content {

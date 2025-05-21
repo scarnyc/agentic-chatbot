@@ -4,7 +4,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const messagesContainer = document.getElementById('messages');
     const messageInput = document.getElementById('message-input');
     const sendButton = document.getElementById('send-button');
-    const scrollButton = document.getElementById('scroll-button');
     
     // State
     let conversationId = null;
@@ -20,20 +19,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const scrollToBottom = () => {
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     };
-    
-    scrollButton.addEventListener('click', scrollToBottom);
-    
-    // Show/hide scroll button based on scroll position
-    messagesContainer.addEventListener('scroll', () => {
-        const scrollPosition = messagesContainer.scrollTop + messagesContainer.clientHeight;
-        const scrollHeight = messagesContainer.scrollHeight;
-        
-        if (scrollHeight - scrollPosition > 100) {
-            scrollButton.classList.add('visible');
-        } else {
-            scrollButton.classList.remove('visible');
-        }
-    });
     
     // Initialize conversation
     const initConversation = async () => {
