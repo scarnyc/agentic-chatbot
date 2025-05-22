@@ -2,6 +2,8 @@
 
 A powerful agentic workflow system built with FastAPI, LangGraph, and Anthropic Claude that provides an intelligent AI assistant capable of web search, Wikipedia queries, and secure code execution.
 
+<img width="974" alt="Screenshot 2025-05-22 at 5 11 00 PM" src="https://github.com/user-attachments/assets/c9b766dc-5708-4473-88cc-19a6063fad74" />
+
 ## Features
 
 🤖 **Advanced AI Chat Interface**
