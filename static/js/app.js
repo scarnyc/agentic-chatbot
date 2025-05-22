@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let conversationId = null;
     let ws = null;
     let currentAssistantMessageDiv = null; // To hold the current assistant message div for streaming
+    let typingIndicator = null; // To hold the typing indicator element
     
     // Auto-resize text area
     messageInput.addEventListener('input', () => {
@@ -64,6 +65,60 @@ document.addEventListener('DOMContentLoaded', () => {
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     };
     
+    // Typing indicator functions
+    const showTypingIndicator = (message = "Thinking", isToolUse = false) => {
+        // Remove existing typing indicator
+        hideTypingIndicator();
+        
+        // Create typing indicator element
+        typingIndicator = document.createElement('div');
+        typingIndicator.className = `message assistant typing-indicator ${isToolUse ? 'tool-indicator' : ''}`;
+        
+        const messageContent = document.createElement('div');
+        messageContent.className = 'message-content';
+        messageContent.innerHTML = `
+            ${message}
+            <div class="typing-dots">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        `;
+        
+        typingIndicator.appendChild(messageContent);
+        messagesContainer.appendChild(typingIndicator);
+        
+        scrollToBottom();
+    };
+    
+    const hideTypingIndicator = () => {
+        if (typingIndicator) {
+            typingIndicator.remove();
+            typingIndicator = null;
+        }
+    };
+    
+    const updateTypingIndicator = (message, isToolUse = false) => {
+        if (typingIndicator) {
+            const messageContent = typingIndicator.querySelector('.message-content');
+            messageContent.innerHTML = `
+                ${message}
+                <div class="typing-dots">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            `;
+            
+            // Update styling for tool use
+            if (isToolUse) {
+                typingIndicator.classList.add('tool-indicator');
+            } else {
+                typingIndicator.classList.remove('tool-indicator');
+            }
+        }
+    };
+    
     // Initialize conversation
     const initConversation = async () => {
         try {
@@ -109,6 +164,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = JSON.parse(event.data);
             
             if (data.type === 'message_chunk') {
+                // Hide typing indicator when first content arrives
+                hideTypingIndicator();
+                
                 // Conservative content validation - only block obvious issues
                 if (typeof data.content === 'string' && 
                     !data.content.includes('[object Object]') && 
@@ -119,11 +177,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     console.warn("Skipping message_chunk due to invalid content:", data.content);
                 }
+            } else if (data.type === 'thinking') {
+                // Show thinking indicator
+                showTypingIndicator("Thinking");
+            } else if (data.type === 'tool_start') {
+                // Show tool-specific typing indicator
+                const toolName = data.tool_name || 'tool';
+                let toolMessage = 'Using tool';
+                
+                // Customize message based on tool
+                if (toolName.includes('wikipedia')) {
+                    toolMessage = 'Searching Wikipedia';
+                } else if (toolName.includes('search') || toolName.includes('tavily')) {
+                    toolMessage = 'Searching the web';
+                } else if (toolName.includes('python') || toolName.includes('code')) {
+                    toolMessage = 'Running code';
+                }
+                
+                updateTypingIndicator(toolMessage, true);
+            } else if (data.type === 'tool_end') {
+                // Show processing indicator after tool completes
+                updateTypingIndicator("Processing results");
             } else if (data.type === 'message_complete') {
-                // Ensure message is complete and scroll
+                // Hide typing indicator and ensure message is complete
+                hideTypingIndicator();
                 currentAssistantMessageDiv = null; // Reset for the next message
                 setTimeout(scrollToBottom, 100);
             } else if (data.type === 'error') {
+                hideTypingIndicator();
                 addErrorMessageToUI(data.content);
                 currentAssistantMessageDiv = null; // Reset if an error occurs
             }
@@ -234,6 +315,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Reset current assistant message div for the new response
         currentAssistantMessageDiv = null; 
         
+        // Show initial typing indicator
+        showTypingIndicator("Thinking");
+        
         // Send via WebSocket
         if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({
@@ -242,6 +326,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 id: Date.now().toString() // Unique ID for the message
             }));
         } else {
+            hideTypingIndicator();
             addErrorMessageToUI('Connection lost. Please refresh the page.');
         }
         

@@ -196,10 +196,37 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
                         
                         try:
                             logger.info(f"Streaming response for ({conversation_id}): {message_content[:100]}...")
+                            current_node = None
+                            
                             async for event in langgraph_app.astream(langgraph_input, config):
                                 for key, value in event.items():
+                                    # Track node transitions for typing indicators
+                                    if key != current_node:
+                                        current_node = key
+                                        
+                                        # Send typing indicators based on node transitions
+                                        if key == "tools":
+                                            await websocket.send_text(json.dumps({
+                                                "type": "tool_start",
+                                                "tool_name": "processing"
+                                            }))
+                                        elif key == "chatbot" and current_node == "tools":
+                                            await websocket.send_text(json.dumps({
+                                                "type": "tool_end"
+                                            }))
+                                    
                                     if isinstance(value, dict) and "messages" in value:
                                         for msg_obj in value["messages"]:
+                                            # Check if this message has tool calls to detect specific tools
+                                            if (hasattr(msg_obj, 'tool_calls') and msg_obj.tool_calls and 
+                                                key == "chatbot"):
+                                                for tool_call in msg_obj.tool_calls:
+                                                    tool_name = tool_call.get('name', 'unknown')
+                                                    await websocket.send_text(json.dumps({
+                                                        "type": "tool_start",
+                                                        "tool_name": tool_name
+                                                    }))
+                                            
                                             # Check if this is an AI message (LangChain AIMessage)
                                             if (hasattr(msg_obj, 'content') and 
                                                 (str(type(msg_obj)).find('AIMessage') != -1 or 
