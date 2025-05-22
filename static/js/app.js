@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // State
     let conversationId = null;
     let ws = null;
+    let currentAssistantMessageDiv = null; // To hold the current assistant message div for streaming
     
     // Auto-resize text area
     messageInput.addEventListener('input', () => {
@@ -27,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
             messagesContainer.innerHTML = '';
             
             // Add proper welcome message
-            addMessage("Hi! I'm your AI by Design Copilot. I can answer questions by searching Wikipedia and the Web. I can also write and execute code securely. How can I help you today?", false);
+            addMessageToUI("Hi! I'm your AI by Design Copilot. I can answer questions by searching Wikipedia and the Web. I can also write and execute code securely. How can I help you today?", 'assistant');
             
             const response = await fetch('/api/conversations', {
                 method: 'POST',
@@ -43,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
             initWebSocket();
         } catch (error) {
             console.error('Error initializing conversation:', error);
-            addErrorMessage('Failed to initialize conversation. Please refresh the page.');
+            addErrorMessageToUI('Failed to initialize conversation. Please refresh the page.');
         }
     };
     
@@ -65,12 +66,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = JSON.parse(event.data);
             
             if (data.type === 'message_chunk') {
-                appendToLastMessage(data.content);
+                // Ensure content is a string and not an object stringification
+                if (typeof data.content === 'string' && !data.content.includes('[object Object]')) {
+                    appendToAssistantMessage(data.content);
+                } else {
+                    console.warn("Skipping message_chunk due to invalid content:", data.content);
+                }
             } else if (data.type === 'message_complete') {
                 // Ensure message is complete and scroll
+                currentAssistantMessageDiv = null; // Reset for the next message
                 setTimeout(scrollToBottom, 100);
             } else if (data.type === 'error') {
-                addErrorMessage(data.content);
+                addErrorMessageToUI(data.content);
+                currentAssistantMessageDiv = null; // Reset if an error occurs
             }
         };
         
@@ -82,64 +90,69 @@ document.addEventListener('DOMContentLoaded', () => {
         
         ws.onerror = (error) => {
             console.error('WebSocket error:', error);
+            addErrorMessageToUI('WebSocket connection error. Please try refreshing.');
         };
     };
     
-    /// Add a message to the UI
-    const addMessage = (content, isUser = false) => {
-        // Don't add empty messages or those containing raw objects
-        if (!content || content.includes('[object Object]')) {
+    // Add a complete message to the UI (user or initial assistant)
+    const addMessageToUI = (content, role = 'user') => {
+        // Basic check for invalid content
+        if (!content || (typeof content === 'string' && content.includes('[object Object]'))) {
+            console.warn("Skipping addMessageToUI due to invalid content:", content);
             return null;
         }
-        
+
         const messageDiv = document.createElement('div');
-        messageDiv.className = `message ${isUser ? 'user' : 'assistant'}`;
+        messageDiv.className = `message ${role}`;
         
-        const messageContent = document.createElement('div');
-        messageContent.className = 'message-content';
+        const messageContentDiv = document.createElement('div');
+        messageContentDiv.className = 'message-content';
         
-        if (isUser) {
-            messageContent.textContent = content;
+        // Sanitize and set content (simple textContent for user, innerHTML for assistant if needed for formatting)
+        if (role === 'user') {
+            messageContentDiv.textContent = content;
         } else {
-            // For the assistant, we'll start with an empty message that can be updated
-            // Only append the div if we have actual content
-            if (content.trim()) {
-                messageContent.innerHTML = content;
-            }
+            // For assistant, allow HTML if it's properly sanitized by the backend
+            // For now, let's assume content is safe or use a sanitizer if available
+            messageContentDiv.innerHTML = content; 
         }
         
-        messageDiv.appendChild(messageContent);
+        messageDiv.appendChild(messageContentDiv);
         messagesContainer.appendChild(messageDiv);
         
-        // Scroll to the new message
         scrollToBottom();
-        
         return messageDiv;
     };
 
-    // Append content to the last message (for streaming)
-    const appendToLastMessage = (content) => {
-        // Skip if content contains raw objects
-        if (!content || content.includes('[object Object]')) {
+    // Append content to the current assistant message (for streaming)
+    const appendToAssistantMessage = (chunk) => {
+        // Ensure chunk is a string and not an object stringification
+        if (typeof chunk !== 'string' || chunk.includes('[object Object]')) {
+            console.warn("Skipping appendToAssistantMessage due to invalid chunk:", chunk);
             return;
         }
-        
-        const messages = messagesContainer.querySelectorAll('.message');
-        const lastMessage = messages[messages.length - 1];
-        
-        if (lastMessage && lastMessage.classList.contains('assistant')) {
-            const messageContent = lastMessage.querySelector('.message-content');
+
+        // If there's no current assistant message div, create one
+        if (!currentAssistantMessageDiv) {
+            currentAssistantMessageDiv = document.createElement('div');
+            currentAssistantMessageDiv.className = 'message assistant';
             
-            // If this is the first content of the message, clear any placeholders
-            if (!messageContent.innerHTML.trim()) {
-                messageContent.innerHTML = '';
-            }
+            const messageContent = document.createElement('div');
+            messageContent.className = 'message-content';
+            // Start empty - will be filled by streaming response
             
-            messageContent.innerHTML += content;
+            currentAssistantMessageDiv.appendChild(messageContent);
+            messagesContainer.appendChild(currentAssistantMessageDiv);
+        }
+        
+        const messageContent = currentAssistantMessageDiv.querySelector('.message-content');
+        if (messageContent) {
+            // Append the chunk (assuming it's safe HTML or plain text)
+            messageContent.innerHTML += chunk; 
             
             // Auto-scroll if near bottom
             const scrollPosition = messagesContainer.scrollTop + messagesContainer.clientHeight;
-            const scrollThreshold = messagesContainer.scrollHeight - 100;
+            const scrollThreshold = messagesContainer.scrollHeight - 100; // Adjust threshold as needed
             
             if (scrollPosition >= scrollThreshold) {
                 scrollToBottom();
@@ -147,13 +160,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     
-    // Add an error message
-    const addErrorMessage = (content) => {
+    // Add an error message to the UI
+    const addErrorMessageToUI = (content) => {
         const messageDiv = document.createElement('div');
-        messageDiv.className = 'message system';
+        messageDiv.className = 'message system'; // Or a specific error class
         
         const messageContent = document.createElement('div');
-        messageContent.className = 'message-content error';
+        messageContent.className = 'message-content error'; // Style this class for errors
         messageContent.textContent = content;
         
         messageDiv.appendChild(messageContent);
@@ -169,36 +182,25 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!content) return;
         
         // Add user message to UI
-        addMessage(content, true);
+        addMessageToUI(content, 'user');
         
-        // Create placeholder for assistant response (but don't show it yet)
-        let assistantMessageDiv = null;
+        // Reset current assistant message div for the new response
+        currentAssistantMessageDiv = null; 
         
         // Send via WebSocket
         if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({
                 type: 'message',
                 content: content,
-                id: Date.now().toString()
+                id: Date.now().toString() // Unique ID for the message
             }));
-            
-            // Now create the assistant message div to prepare for streaming
-            assistantMessageDiv = document.createElement('div');
-            assistantMessageDiv.className = 'message assistant';
-            
-            const messageContent = document.createElement('div');
-            messageContent.className = 'message-content';
-            // Start empty - will be filled by streaming response
-            
-            assistantMessageDiv.appendChild(messageContent);
-            messagesContainer.appendChild(assistantMessageDiv);
         } else {
-            addErrorMessage('Connection lost. Please refresh the page.');
+            addErrorMessageToUI('Connection lost. Please refresh the page.');
         }
         
         // Clear input
         messageInput.value = '';
-        messageInput.style.height = 'auto';
+        messageInput.style.height = 'auto'; // Reset height
         
         // Focus input
         messageInput.focus();
