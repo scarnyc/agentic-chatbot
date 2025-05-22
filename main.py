@@ -358,4 +358,10 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
 if __name__ == "__main__":
     import uvicorn
     logger.info("Starting AI by Design Copilot server on http://0.0.0.0:8000")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(
+        app, 
+        host="0.0.0.0", 
+        port=8000,
+        log_config=None,  # Disable uvicorn's default logging
+        access_log=False  # Disable access logging since we handle it ourselves
+    )
