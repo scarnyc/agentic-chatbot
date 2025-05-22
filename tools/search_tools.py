@@ -165,27 +165,21 @@ def extract_urls_from_tavily_result(content: str) -> List[str]:
 
 def format_citations(content: str) -> str:
     """
-    Format citations in the content string with improved citation handling.
+    Clean up content by removing citation markup and adding sources list.
     Args:
         content: The text content to process
     Returns:
-        The content with properly formatted citations
+        The content with citations removed and sources appended
     """
     if not content or not isinstance(content, str):
         return content
 
     try:
-        if "<cite index=" in content and "Sources:" in content:
-            return content
-
+        # Remove any existing citation tags
+        import re
+        content = re.sub(r'<cite index="[^"]*">(.*?)</cite>', r'\1', content)
+        
         urls = extract_urls_from_tavily_result(content)
-
-        paragraphs = content.split('\n\n')
-        for i, paragraph in enumerate(paragraphs):
-            if len(paragraph.strip()) > 50 and not paragraph.startswith("Sources:"):
-                if "<cite" not in paragraph:
-                    cited_paragraph = f'<cite index="{i//2}-0">{paragraph}</cite>'
-                    content = content.replace(paragraph, cited_paragraph)
 
         if urls and "Sources:" not in content:
             sources_text = "\n\nSources:\n"

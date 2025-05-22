@@ -30,7 +30,7 @@ body {
     display: flex;
     flex-direction: column;
     height: 100vh;
-    max-width: 1200px;
+    max-width: 900px;
     margin: 0 auto;
     width: 100%;
 }
@@ -88,7 +88,7 @@ body {
 .message-content {
     padding: 1rem;
     border-radius: 0.5rem;
-    max-width: min(48rem, 80%);
+    max-width: min(40rem, 85%);
     min-width: 0;
     line-height: 1.5;
     word-wrap: break-word;
@@ -265,7 +265,7 @@ code {
 /* Responsive adjustments */
 @media (max-width: 48rem) {
     .message-content {
-        max-width: min(32rem, 95%);
+        max-width: min(28rem, 95%);
     }
     
     .app-container {

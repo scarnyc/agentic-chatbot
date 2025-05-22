@@ -80,15 +80,12 @@ def get_prompt():
 
     CITATION GUIDELINES:
         - Each factual claim must be linked to its source.
-        - Use the <cite index="source-number"> format for citations.
         - Include a sources list at the end of your response.
         - Prioritize recent sources (last 1-2 years when applicable).
         - Prefer authoritative sources (academic, government, established news outlets).
 
         FORMATTING EXAMPLE FOR CITATIONS:
-        <cite index="1">The factual claim goes here.</cite> 
-        <cite index="2">Another factual claim goes here.</cite>
-
+        
         Sources:
         [https://example.com/ai-market-report-2024](https://example.com/ai-market-report-2024) (Research Institute, May 2024)
         [https://example.com/healthcare-ai-growth](https://example.com/healthcare-ai-growth) (Healthcare Technology Review, April 2024)
