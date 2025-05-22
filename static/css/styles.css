@@ -6,6 +6,8 @@
     --text-light: #e4e6eb;
     --text-secondary: #b0b3b8;
     --accent: #7c4dff;
+    --link-color: #64b5f6;
+    --link-hover: #42a5f5;
     --primary-font: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
@@ -172,6 +174,46 @@ pre {
 
 code {
     font-family: 'Consolas', 'Courier New', monospace;
+}
+
+/* Markdown elements styling */
+.message-content a {
+    color: var(--link-color);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.message-content a:hover {
+    color: var(--link-hover);
+    border-bottom-color: var(--link-hover);
+    text-decoration: none;
+}
+
+.message-content a:visited {
+    color: var(--link-color);
+    opacity: 0.8;
+}
+
+.message-content strong {
+    font-weight: 600;
+    color: var(--text-light);
+}
+
+.message-content em {
+    font-style: italic;
+    color: var(--text-light);
+}
+
+/* Ensure links work properly in user messages too */
+.user .message-content a {
+    color: rgba(255, 255, 255, 0.9);
+    border-bottom-color: rgba(255, 255, 255, 0.5);
+}
+
+.user .message-content a:hover {
+    color: white;
+    border-bottom-color: white;
 }
 
 /* Responsive adjustments */

@@ -16,6 +16,43 @@ document.addEventListener('DOMContentLoaded', () => {
         messageInput.style.height = (messageInput.scrollHeight) + 'px';
     });
     
+    // Simple markdown parser for basic formatting
+    const parseMarkdown = (text) => {
+        // Escape HTML first to prevent XSS
+        text = text.replace(/&/g, '&amp;')
+                   .replace(/</g, '&lt;')
+                   .replace(/>/g, '&gt;');
+        
+        // Handle URLs in square brackets like [text](url) - do this first to avoid conflicts
+        text = text.replace(
+            /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+            '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
+        );
+        
+        // Handle URLs in parentheses like (https://example.com) 
+        text = text.replace(
+            /\((https?:\/\/[^\s)]+)\)/g,
+            '(<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>)'
+        );
+        
+        // Handle standalone URLs (not already in links)
+        text = text.replace(
+            /(^|[^"=])(https?:\/\/[^\s<>&"]+)/g,
+            '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>'
+        );
+        
+        // Handle bold text **text** (must come before italic to avoid conflicts)
+        text = text.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>');
+        
+        // Handle italic text *text* - only single asterisks not part of bold
+        text = text.replace(/(^|[^*])\*([^*\s][^*]*?[^*\s])\*([^*]|$)/g, '$1<em>$2</em>$3');
+        
+        // Handle line breaks
+        text = text.replace(/\n/g, '<br>');
+        
+        return text;
+    };
+    
     // Scroll to bottom functionality
     const scrollToBottom = () => {
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -112,13 +149,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const messageContentDiv = document.createElement('div');
         messageContentDiv.className = 'message-content';
         
-        // Sanitize and set content (simple textContent for user, innerHTML for assistant if needed for formatting)
+        // Sanitize and set content (simple textContent for user, parsed markdown for assistant)
         if (role === 'user') {
             messageContentDiv.textContent = content;
         } else {
-            // For assistant, allow HTML if it's properly sanitized by the backend
-            // For now, let's assume content is safe or use a sanitizer if available
-            messageContentDiv.innerHTML = content; 
+            // For assistant, parse markdown for proper formatting
+            messageContentDiv.innerHTML = parseMarkdown(content); 
         }
         
         messageDiv.appendChild(messageContentDiv);
@@ -151,8 +187,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const messageContent = currentAssistantMessageDiv.querySelector('.message-content');
         if (messageContent) {
-            // Append the chunk (assuming it's safe HTML or plain text)
-            messageContent.innerHTML += chunk; 
+            // Parse markdown and append the chunk
+            const parsedChunk = parseMarkdown(chunk);
+            messageContent.innerHTML += parsedChunk; 
             
             // Auto-scroll if near bottom
             const scrollPosition = messagesContainer.scrollTop + messagesContainer.clientHeight;
