@@ -3,6 +3,7 @@
 import os
 import time
 import logging
+import asyncio
 from typing import Annotated
 from dotenv import load_dotenv
 from typing_extensions import TypedDict
@@ -16,6 +17,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.store.memory import InMemoryStore
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from anthropic import APIError, RateLimitError, InternalServerError
+from core.error_recovery import ErrorRecoveryManager, RetryConfig, get_error_recovery_stats
 
 from tools.prompt import get_prompt
 from tools.wiki_tools import create_wikipedia_tool
@@ -26,6 +28,16 @@ load_dotenv()
 
 # Set up logging
 logger = logging.getLogger(__name__)
+
+# Initialize error recovery manager with custom config
+error_recovery_config = RetryConfig(
+    max_attempts=4,  # Reduced from 5 for faster failure detection
+    base_delay=0.5,  # Start with shorter delay
+    max_delay=30.0,  # Reduced max delay
+    exponential_base=2.0,
+    jitter_factor=0.15  # Slightly more jitter
+)
+error_recovery_manager = ErrorRecoveryManager(error_recovery_config)
 
 class AnthropicStopReasonHandler:
     """Handles Anthropic API stop reasons and provides appropriate responses."""
@@ -207,83 +219,87 @@ def should_continue(state: MessagesState) -> str:
 
 def call_model(state: MessagesState) -> dict:
     """
-    The main agent node function. Invokes the LLM with error handling, retry logic, and stop reason handling.
+    The main agent node function. Invokes the LLM with advanced error recovery and stop reason handling.
     Args:
         state: The current state of the graph.
     Returns:
         A dictionary containing the updated messages list.
     """
     messages = state["messages"]
-    max_retries = 3
-    max_pause_retries = 3  # For pause_turn stop reason
     
-    for attempt in range(max_retries + 1):
-        try:
-            response = model_chain.invoke({"messages": messages})
-            
-            # Log request ID if available for support tracking
-            if hasattr(response, 'response_metadata') and 'request-id' in response.response_metadata:
-                request_id = response.response_metadata['request-id']
-                logger.info(f"Anthropic request ID: {request_id}")
-            
-            # Handle stop reasons
-            stop_handler = AnthropicStopReasonHandler()
-            stop_info = stop_handler.handle_stop_reason(response, messages)
-            
-            # Handle pause_turn with retry logic
-            if stop_info['should_continue']:
-                for pause_attempt in range(max_pause_retries):
-                    logger.info(f"Retrying paused turn (attempt {pause_attempt + 1}/{max_pause_retries})")
-                    time.sleep(1 + pause_attempt)  # Progressive delay
+    async def model_operation():
+        """The actual model invocation wrapped for error recovery."""
+        response = model_chain.invoke({"messages": messages})
+        
+        # Log request ID if available for support tracking
+        if hasattr(response, 'response_metadata') and 'request-id' in response.response_metadata:
+            request_id = response.response_metadata['request-id']
+            logger.info(f"Anthropic request ID: {request_id}")
+        
+        # Handle stop reasons
+        stop_handler = AnthropicStopReasonHandler()
+        stop_info = stop_handler.handle_stop_reason(response, messages)
+        
+        # Handle pause_turn with retry logic
+        if stop_info['should_continue']:
+            max_pause_retries = 3
+            for pause_attempt in range(max_pause_retries):
+                logger.info(f"Retrying paused turn (attempt {pause_attempt + 1}/{max_pause_retries})")
+                await asyncio.sleep(1 + pause_attempt)  # Progressive delay
+                
+                try:
+                    response = model_chain.invoke({"messages": messages})
+                    stop_info = stop_handler.handle_stop_reason(response, messages)
                     
-                    try:
-                        response = model_chain.invoke({"messages": messages})
-                        stop_info = stop_handler.handle_stop_reason(response, messages)
-                        
-                        if not stop_info['should_continue']:
-                            break  # Success, exit retry loop
-                    except Exception as retry_e:
-                        logger.warning(f"Pause retry failed: {retry_e}")
-                        if pause_attempt == max_pause_retries - 1:
-                            # Final attempt failed, continue with original response
-                            break
-            
-            # Modify content if needed (e.g., add truncation warning)
-            if stop_info['modified_content']:
-                from langchain_core.messages import AIMessage
-                modified_response = AIMessage(
-                    content=stop_info['modified_content'],
-                    additional_kwargs=response.additional_kwargs if hasattr(response, 'additional_kwargs') else {},
-                    response_metadata=response.response_metadata if hasattr(response, 'response_metadata') else {}
-                )
-                return {"messages": [modified_response]}
-            
-            return {"messages": [response]}
-            
-        except Exception as e:
-            error_handler = AnthropicAPIErrorHandler()
-            
-            # Log the error with details
-            error_msg = error_handler.get_error_message(e)
-            logger.error(f"Anthropic API error (attempt {attempt + 1}/{max_retries + 1}): {error_msg}")
-            
-            # Log request ID if available for support
-            if hasattr(e, 'response') and hasattr(e.response, 'headers'):
-                request_id = e.response.headers.get('request-id')
-                if request_id:
-                    logger.error(f"Failed request ID: {request_id}")
-            
-            # Check if we should retry
-            if attempt < max_retries and error_handler.should_retry(e):
-                delay = error_handler.get_retry_delay(attempt + 1, e)
-                logger.info(f"Retrying in {delay} seconds...")
-                time.sleep(delay)
-                continue
-            else:
-                # Return error message as AI response instead of raising
-                from langchain_core.messages import AIMessage
-                error_response = AIMessage(content=error_msg)
-                return {"messages": [error_response]}
+                    if not stop_info['should_continue']:
+                        break  # Success, exit retry loop
+                except Exception as retry_e:
+                    logger.warning(f"Pause retry failed: {retry_e}")
+                    if pause_attempt == max_pause_retries - 1:
+                        # Final attempt failed, continue with original response
+                        break
+        
+        # Modify content if needed (e.g., add truncation warning)
+        if stop_info['modified_content']:
+            from langchain_core.messages import AIMessage
+            modified_response = AIMessage(
+                content=stop_info['modified_content'],
+                additional_kwargs=response.additional_kwargs if hasattr(response, 'additional_kwargs') else {},
+                response_metadata=response.response_metadata if hasattr(response, 'response_metadata') else {}
+            )
+            return {"messages": [modified_response]}
+        
+        return {"messages": [response]}
+    
+    # Use error recovery for the model call
+    try:
+        # Run the async operation
+        loop = asyncio.get_event_loop()
+        result = loop.run_until_complete(
+            error_recovery_manager.execute_with_retry(
+                model_operation,
+                operation_name="ANTHROPIC_API_CALL"
+            )
+        )
+        return result
+        
+    except Exception as e:
+        # Fallback error handling if error recovery fails
+        error_handler = AnthropicAPIErrorHandler()
+        error_msg = error_handler.get_error_message(e)
+        
+        # Log request ID if available for support
+        if hasattr(e, 'response') and hasattr(e.response, 'headers'):
+            request_id = e.response.headers.get('request-id')
+            if request_id:
+                logger.error(f"Failed request ID: {request_id}")
+        
+        logger.error(f"Final error after all retries: {error_msg}")
+        
+        # Return error message as AI response instead of raising
+        from langchain_core.messages import AIMessage
+        error_response = AIMessage(content=error_msg)
+        return {"messages": [error_response]}
 
 
 workflow = StateGraph(MessagesState)

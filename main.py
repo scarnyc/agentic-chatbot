@@ -16,10 +16,15 @@ import asyncio
 import logging
 from core.app import langgraph_app # Assuming core.app contains your LangGraph setup
 from core.cache import get_cache_stats, clear_cache
+from core.error_recovery import get_error_recovery_stats
 
 # Initialize logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from core.logging_config import setup_logging, get_logger
+
+# Set up comprehensive logging
+loggers = setup_logging(log_level=logging.INFO)
+logger = get_logger(__name__)
+websocket_logger = get_logger('websocket')
 
 # Initialize FastAPI
 app = FastAPI(title="AI by Design Copilot")
@@ -82,13 +87,20 @@ async def clear_cache_endpoint():
 
 @app.get("/api/health")
 async def health_check():
-    """Health check endpoint with cache stats."""
-    stats = get_cache_stats()
+    """Health check endpoint with cache and error recovery stats."""
+    cache_stats = get_cache_stats()
+    error_stats = get_error_recovery_stats()
     return JSONResponse(content={
         "status": "healthy",
-        "cache": stats,
+        "cache": cache_stats,
+        "error_recovery": error_stats,
         "active_conversations": len(conversations)
     })
+
+@app.get("/api/error-recovery/stats")
+async def get_error_recovery_statistics():
+    """Get error recovery statistics."""
+    return JSONResponse(content=get_error_recovery_stats())
 
 def is_obviously_raw_data(text: str) -> bool:
     """
@@ -162,12 +174,12 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
     await websocket.accept() 
 
     if conversation_id not in conversations:
-        logger.warning(f"WebSocket for conversation_id '{conversation_id}' accepted, but ID not found. Closing.")
+        websocket_logger.warning(f"WebSocket for conversation_id '{conversation_id}' accepted, but ID not found. Closing.")
         await websocket.close(code=1008) 
         return
 
     manager.register_connection(websocket, conversation_id)
-    logger.info(f"WebSocket registered for conversation: {conversation_id}")
+    websocket_logger.info(f"WebSocket registered for conversation: {conversation_id}")
     
     try:
         while True:
@@ -178,10 +190,10 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
                 if payload.get("type") == "message":
                     message_content = payload.get("content", "")
                     if not isinstance(message_content, str): 
-                        logger.warning("Received non-string message content from client.")
+                        websocket_logger.warning("Received non-string message content from client.")
                         message_content = str(message_content)
 
-                    logger.info(f"Received message from client ({conversation_id}): {message_content[:100]}...")
+                    websocket_logger.info(f"Received message from client ({conversation_id}): {message_content[:100]}...")
                     
                     conversations[conversation_id].messages.append({
                         "role": "user",

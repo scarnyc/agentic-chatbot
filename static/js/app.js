@@ -198,6 +198,20 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (data.type === 'tool_end') {
                 // Show processing indicator after tool completes
                 updateTypingIndicator("Processing results");
+            } else if (data.type === 'retry_attempt') {
+                // Show retry indicator
+                const retryMessage = `Retrying (${data.attempt}/${data.max_attempts})`;
+                updateTypingIndicator(retryMessage, false);
+            } else if (data.type === 'retry_delay') {
+                // Show delay indicator
+                const delayMessage = `Waiting ${Math.ceil(data.delay)}s before retry`;
+                updateTypingIndicator(delayMessage, false);
+            } else if (data.type === 'retry_success') {
+                // Show success after retry
+                updateTypingIndicator("Retry successful, processing");
+            } else if (data.type === 'retry_exhausted') {
+                // Hide indicator when retries are exhausted
+                hideTypingIndicator();
             } else if (data.type === 'message_complete') {
                 // Hide typing indicator and ensure message is complete
                 hideTypingIndicator();
