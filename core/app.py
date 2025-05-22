@@ -227,7 +227,7 @@ def call_model(state: MessagesState) -> dict:
     """
     messages = state["messages"]
     
-    async def model_operation():
+    def model_operation():
         """The actual model invocation wrapped for error recovery."""
         response = model_chain.invoke({"messages": messages})
         
@@ -245,7 +245,7 @@ def call_model(state: MessagesState) -> dict:
             max_pause_retries = 3
             for pause_attempt in range(max_pause_retries):
                 logger.info(f"Retrying paused turn (attempt {pause_attempt + 1}/{max_pause_retries})")
-                await asyncio.sleep(1 + pause_attempt)  # Progressive delay
+                time.sleep(1 + pause_attempt)  # Progressive delay
                 
                 try:
                     response = model_chain.invoke({"messages": messages})
@@ -271,15 +271,11 @@ def call_model(state: MessagesState) -> dict:
         
         return {"messages": [response]}
     
-    # Use error recovery for the model call
+    # Use synchronous error recovery for the model call
     try:
-        # Run the async operation
-        loop = asyncio.get_event_loop()
-        result = loop.run_until_complete(
-            error_recovery_manager.execute_with_retry(
-                model_operation,
-                operation_name="ANTHROPIC_API_CALL"
-            )
+        result = error_recovery_manager.execute_with_retry_sync(
+            model_operation,
+            operation_name="ANTHROPIC_API_CALL"
         )
         return result
         

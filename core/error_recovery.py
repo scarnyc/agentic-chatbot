@@ -256,6 +256,63 @@ class ErrorRecoveryManager:
         
         raise last_error
     
+    def execute_with_retry_sync(
+        self, 
+        operation: Callable,
+        operation_name: str = "API_CALL",
+        *args, 
+        **kwargs
+    ) -> Any:
+        """Execute an operation with automatic retry logic (synchronous version)."""
+        self.total_attempts += 1
+        last_error = None
+        
+        for attempt in range(1, self.retry_config.max_attempts + 1):
+            try:
+                # Execute the operation
+                result = operation(*args, **kwargs)
+                
+                # Record success
+                self._record_success()
+                
+                if attempt > 1:
+                    logger.info(f"{operation_name} succeeded on attempt {attempt}")
+                
+                return result
+                
+            except Exception as error:
+                last_error = error
+                failure_type = self.classify_error(error)
+                
+                logger.warning(f"{operation_name} failed on attempt {attempt}: {error} (type: {failure_type})")
+                
+                # Record the failure
+                self._record_failure(error)
+                
+                # Check if we should retry
+                if not self.should_retry(error, attempt):
+                    logger.error(f"{operation_name} failed permanently after {attempt} attempts")
+                    break
+                
+                # Calculate delay and wait
+                delay = self.calculate_delay(attempt, failure_type)
+                
+                # Record retry attempt
+                retry_attempt = RetryAttempt(
+                    attempt_number=attempt,
+                    delay=delay,
+                    error=error,
+                    timestamp=datetime.now(),
+                    failure_type=failure_type
+                )
+                self.retry_history.append(retry_attempt)
+                
+                logger.info(f"Retrying {operation_name} in {delay:.2f}s (attempt {attempt + 1}/{self.retry_config.max_attempts})")
+                time.sleep(delay)
+        
+        # All retries exhausted
+        raise last_error
+    
     def get_stats(self) -> Dict[str, Any]:
         """Get retry and circuit breaker statistics."""
         recent_failures = [
