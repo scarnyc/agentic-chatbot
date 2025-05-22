@@ -372,6 +372,7 @@ User Query
 - MCP Servers
 - File System
 - Evals, monitoring & logging
+- RL fine-tuning with GRPO
 
 ### v3
 - Planning: research, generation, reflection
