@@ -430,7 +430,7 @@ User Query
     ▼
 ┌───────────────┐
 │ Agent         │
-│ (Claude 4)  │
+│ (Claude 4)    │
 └───────────────┘
     │
     ├─────────────────┬─────────────────┐
@@ -444,11 +444,11 @@ User Query
 ## Roadmap
 
 ### v0
-- Comprehensive error handling
-- Handling stop reasons
-- Caching Results: Add a simple cache for commonly requested information to reduce API calls
-- Progressive Enhancement: In the frontend, show typing indicators during tool transitions for a more natural feel
-- Error Recovery: Implement automatic retries for temporary API failures
+✅ Comprehensive error handling
+✅ Handling stop reasons
+✅ Caching Results: Add a simple cache for commonly requested information to reduce API calls
+✅ Progressive Enhancement: In the frontend, show typing indicators during tool transitions for a more natural feel
+✅ Error Recovery: Implement automatic retries for temporary API failures
   
 ### v1
 - Generative UI
