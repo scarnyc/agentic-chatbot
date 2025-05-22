@@ -5,6 +5,7 @@ import json
 from typing import Dict, Any, List
 from langchain_core.tools import Tool
 from langchain_community.tools.tavily_search.tool import TavilySearchResults
+from core.cache import cache
 
 
 class TavilyResultTracker:
@@ -202,28 +203,55 @@ def create_tavily_search_tool(tavily_api_key):
         Configured search tool or None if failed
     """
     try:
-        def tavily_search_with_processing(*args, **kwargs):
+        def tavily_search_with_processing(query, *args, **kwargs):
+            # Check cache first
+            cache_key_params = {
+                'k': 3,
+                'include_raw_content': True,
+                'include_images': False,
+                'include_answer': True,
+                'max_results': 3,
+                'search_depth': 'basic'
+            }
+            
+            cached_result = cache.get('tavily', query, **cache_key_params)
+            if cached_result is not None:
+                print(f"Cache hit for Tavily search: {query[:50]}...")
+                return cached_result
+            
             try:
+                print(f"Making Tavily API call for: {query[:50]}...")
                 results = TavilySearchResults(api_key=tavily_api_key,
                                              k=3,
                                              include_raw_content=True,
                                              include_images=False,
                                              include_answer=True,
                                              max_results=3,
-                                             search_depth="basic")(
-                                                 *args, **kwargs)
+                                             search_depth="basic")(query, *args, **kwargs)
 
-                return process_search_results(results, 
-                                            max_tokens=1000,
-                                            max_results=3,
-                                            max_chars_per_result=2000)
+                processed_results = process_search_results(results, 
+                                                         max_tokens=1000,
+                                                         max_results=3,
+                                                         max_chars_per_result=2000)
+                
+                # Cache the results (30 minutes TTL for search results)
+                cache.set('tavily', query, processed_results, ttl=1800, **cache_key_params)
+                
+                return processed_results
+                
             except Exception as e:
-                print(f"Error in Tavily search: {e}")
-                return [{
+                error_result = [{
                     "url": "https://example.com/search_error",
                     "content": "Search encountered an error. The search service may be unavailable or experiencing high load. Please try a more specific query or try again later.",
                     "title": "Search Error"
                 }]
+                
+                print(f"Error in Tavily search: {e}")
+                
+                # Cache error results for shorter time (5 minutes) to avoid repeated failures
+                cache.set('tavily', query, error_result, ttl=300, **cache_key_params)
+                
+                return error_result
 
         search_tool = Tool(
             name="tavily_search_results",

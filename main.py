@@ -5,7 +5,7 @@ It also has access to Wikipedia info while incorporating memory.
 """
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -15,6 +15,7 @@ import json
 import asyncio
 import logging
 from core.app import langgraph_app # Assuming core.app contains your LangGraph setup
+from core.cache import get_cache_stats, clear_cache
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
@@ -67,6 +68,27 @@ async def create_conversation():
     conversations[conversation_id] = Conversation(id=conversation_id)
     logger.info(f"Created new conversation: {conversation_id}")
     return {"conversation_id": conversation_id}
+
+@app.get("/api/cache/stats")
+async def get_cache_statistics():
+    """Get cache statistics."""
+    return JSONResponse(content=get_cache_stats())
+
+@app.post("/api/cache/clear")
+async def clear_cache_endpoint():
+    """Clear all cache entries."""
+    clear_cache()
+    return JSONResponse(content={"message": "Cache cleared successfully"})
+
+@app.get("/api/health")
+async def health_check():
+    """Health check endpoint with cache stats."""
+    stats = get_cache_stats()
+    return JSONResponse(content={
+        "status": "healthy",
+        "cache": stats,
+        "active_conversations": len(conversations)
+    })
 
 def is_obviously_raw_data(text: str) -> bool:
     """

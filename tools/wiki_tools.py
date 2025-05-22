@@ -2,6 +2,7 @@
 
 from langchain_core.tools import Tool
 from langchain_community.utilities import WikipediaAPIWrapper
+from core.cache import cache
 
 def create_wikipedia_tool():
     """
@@ -13,9 +14,21 @@ def create_wikipedia_tool():
     try:
         api_wrapper = WikipediaAPIWrapper(top_k_results=3, doc_content_chars_max=3000)
 
-        # Wrap the Wikipedia run to provide error handling and token management
+        # Wrap the Wikipedia run to provide error handling, token management, and caching
         def wiki_query_with_handling(query):
+            # Check cache first
+            cache_key_params = {
+                'top_k_results': 3,
+                'doc_content_chars_max': 3000
+            }
+            
+            cached_result = cache.get('wikipedia', query, **cache_key_params)
+            if cached_result is not None:
+                print(f"Cache hit for Wikipedia search: {query[:50]}...")
+                return cached_result
+            
             try:
+                print(f"Making Wikipedia API call for: {query[:50]}...")
                 result = api_wrapper.run(query)
 
                 # Limit result size to avoid token issues
@@ -26,10 +39,20 @@ def create_wikipedia_tool():
                 wiki_url = f"https://en.wikipedia.org/wiki/{query.replace(' ', '_')}"
                 result += f"\n\nSources:\n{wiki_url}"
 
+                # Cache the results (24 hours TTL for Wikipedia - more stable content)
+                cache.set('wikipedia', query, result, ttl=86400, **cache_key_params)
+                
                 return result
+                
             except Exception as e:
+                error_result = "Wikipedia search encountered an error. Please try a different query or check your connection."
+                
                 print(f"Error in Wikipedia search: {e}")
-                return "Wikipedia search encountered an error. Please try a different query or check your connection."
+                
+                # Cache error results for shorter time (5 minutes)
+                cache.set('wikipedia', query, error_result, ttl=300, **cache_key_params)
+                
+                return error_result
 
         # Create the tool with our wrapped function
         wiki_tool = Tool(
