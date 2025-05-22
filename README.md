@@ -7,7 +7,7 @@ A powerful agentic workflow system built with FastAPI, LangGraph, and Anthropic 
 🤖 **Advanced AI Chat Interface**
 - Real-time streaming responses via WebSocket
 - Intelligent text formatting with proper sentence spacing
-- **Markdown support**: Automatic parsing of **bold**, *italic*, and clickable hyperlinks
+- **Markdown support**: Automatic parsing of headers, **bold**, *italic*, and clickable hyperlinks
 - Responsive design with REM-based CSS
 
 🔧 **Multi-Tool Integration**
@@ -157,11 +157,12 @@ agentic-workflow/
 - Memory-efficient algorithms
 
 ### 📝 Rich Text Formatting
+- **Headers**: `# Title`, `## Subtitle`, `### Section` (supports H1-H6)
 - **Bold text**: `**text**` renders as **bold**
 - **Italic text**: `*text*` renders as *italic*
 - **Clickable links**: Automatic URL detection and formatting
 - **Smart parsing**: Real-time markdown processing during streaming
-- **Custom styling**: Light blue links optimized for dark theme
+- **Custom styling**: Light blue links and purple headers optimized for dark theme
 
 ## Configuration
 

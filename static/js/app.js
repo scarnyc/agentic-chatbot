@@ -41,6 +41,12 @@ document.addEventListener('DOMContentLoaded', () => {
             '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>'
         );
         
+        // Handle headers (must come before other formatting)
+        text = text.replace(/^(#{1,6})\s+(.+)$/gm, function(match, hashes, content) {
+            const level = hashes.length;
+            return `<h${level}>${content}</h${level}>`;
+        });
+        
         // Handle bold text **text** (must come before italic to avoid conflicts)
         text = text.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>');
         
