@@ -27,6 +27,60 @@ load_dotenv()
 # Set up logging
 logger = logging.getLogger(__name__)
 
+class AnthropicStopReasonHandler:
+    """Handles Anthropic API stop reasons and provides appropriate responses."""
+    
+    @staticmethod
+    def handle_stop_reason(response, messages_context=None) -> dict:
+        """
+        Handle different stop reasons from Anthropic API responses.
+        Args:
+            response: The API response object
+            messages_context: Optional context for continuation requests
+        Returns:
+            Dict with handling information and any modifications needed
+        """
+        stop_reason = None
+        stop_info = {
+            'should_warn_user': False,
+            'warning_message': None,
+            'should_continue': False,
+            'modified_content': None
+        }
+        
+        # Extract stop reason from response metadata
+        if hasattr(response, 'response_metadata'):
+            stop_reason = response.response_metadata.get('stop_reason')
+        elif hasattr(response, 'additional_kwargs'):
+            stop_reason = response.additional_kwargs.get('stop_reason')
+        
+        if stop_reason:
+            logger.info(f"Anthropic stop reason: {stop_reason}")
+            
+            if stop_reason == 'max_tokens':
+                stop_info['should_warn_user'] = True
+                stop_info['warning_message'] = "\n\n*Note: Response was truncated due to length limits. The answer may be incomplete.*"
+                stop_info['modified_content'] = response.content + stop_info['warning_message']
+                logger.warning("Response truncated due to max_tokens limit")
+                
+            elif stop_reason == 'stop_sequence':
+                logger.info("Response stopped due to custom stop sequence")
+                # Could add logic here to handle specific stop sequences
+                
+            elif stop_reason == 'tool_use':
+                logger.info("Response stopped for tool use - this should be handled by LangGraph")
+                # LangGraph handles tool use automatically, so this is informational
+                
+            elif stop_reason == 'pause_turn':
+                logger.info("Response paused - implementing retry logic")
+                stop_info['should_continue'] = True
+                
+            elif stop_reason == 'end_turn':
+                logger.debug("Response completed naturally")
+                # This is the normal case, no special handling needed
+        
+        return stop_info
+
 class AnthropicAPIErrorHandler:
     """Handles Anthropic API errors with appropriate retry logic and user-friendly messages."""
     
@@ -153,7 +207,7 @@ def should_continue(state: MessagesState) -> str:
 
 def call_model(state: MessagesState) -> dict:
     """
-    The main agent node function. Invokes the LLM with error handling and retry logic.
+    The main agent node function. Invokes the LLM with error handling, retry logic, and stop reason handling.
     Args:
         state: The current state of the graph.
     Returns:
@@ -161,6 +215,7 @@ def call_model(state: MessagesState) -> dict:
     """
     messages = state["messages"]
     max_retries = 3
+    max_pause_retries = 3  # For pause_turn stop reason
     
     for attempt in range(max_retries + 1):
         try:
@@ -170,6 +225,38 @@ def call_model(state: MessagesState) -> dict:
             if hasattr(response, 'response_metadata') and 'request-id' in response.response_metadata:
                 request_id = response.response_metadata['request-id']
                 logger.info(f"Anthropic request ID: {request_id}")
+            
+            # Handle stop reasons
+            stop_handler = AnthropicStopReasonHandler()
+            stop_info = stop_handler.handle_stop_reason(response, messages)
+            
+            # Handle pause_turn with retry logic
+            if stop_info['should_continue']:
+                for pause_attempt in range(max_pause_retries):
+                    logger.info(f"Retrying paused turn (attempt {pause_attempt + 1}/{max_pause_retries})")
+                    time.sleep(1 + pause_attempt)  # Progressive delay
+                    
+                    try:
+                        response = model_chain.invoke({"messages": messages})
+                        stop_info = stop_handler.handle_stop_reason(response, messages)
+                        
+                        if not stop_info['should_continue']:
+                            break  # Success, exit retry loop
+                    except Exception as retry_e:
+                        logger.warning(f"Pause retry failed: {retry_e}")
+                        if pause_attempt == max_pause_retries - 1:
+                            # Final attempt failed, continue with original response
+                            break
+            
+            # Modify content if needed (e.g., add truncation warning)
+            if stop_info['modified_content']:
+                from langchain_core.messages import AIMessage
+                modified_response = AIMessage(
+                    content=stop_info['modified_content'],
+                    additional_kwargs=response.additional_kwargs if hasattr(response, 'additional_kwargs') else {},
+                    response_metadata=response.response_metadata if hasattr(response, 'response_metadata') else {}
+                )
+                return {"messages": [modified_response]}
             
             return {"messages": [response]}
             
