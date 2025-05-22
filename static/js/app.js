@@ -71,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
             messagesContainer.innerHTML = '';
             
             // Add proper welcome message
-            addMessageToUI("Hi! I'm your AI by Design Copilot. I can answer questions by searching Wikipedia and the Web. I can also write and execute code securely. How can I help you today?", 'assistant');
+            addMessageToUI("Hi! I'm your AI by Design Agent. I can answer questions by searching Wikipedia and the Web. I can also write and execute code securely. How can I help you today?", 'assistant');
             
             const response = await fetch('/api/conversations', {
                 method: 'POST',
