@@ -23,6 +23,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize conversation
     const initConversation = async () => {
         try {
+            // Clear any existing messages first
+            messagesContainer.innerHTML = '';
+            
+            // Add proper welcome message
+            addMessage("Hi! I'm your AI by Design Copilot. I can answer questions by searching Wikipedia and the Web. I can also write and execute code securely. How can I help you today?", false);
+            
             const response = await fetch('/api/conversations', {
                 method: 'POST',
                 headers: {
@@ -79,8 +85,13 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     };
     
-    // Add a message to the UI
+    /// Add a message to the UI
     const addMessage = (content, isUser = false) => {
+        // Don't add empty messages or those containing raw objects
+        if (!content || content.includes('[object Object]')) {
+            return null;
+        }
+        
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${isUser ? 'user' : 'assistant'}`;
         
@@ -91,7 +102,10 @@ document.addEventListener('DOMContentLoaded', () => {
             messageContent.textContent = content;
         } else {
             // For the assistant, we'll start with an empty message that can be updated
-            messageContent.innerHTML = content || '';
+            // Only append the div if we have actual content
+            if (content.trim()) {
+                messageContent.innerHTML = content;
+            }
         }
         
         messageDiv.appendChild(messageContent);
@@ -102,14 +116,25 @@ document.addEventListener('DOMContentLoaded', () => {
         
         return messageDiv;
     };
-    
+
     // Append content to the last message (for streaming)
     const appendToLastMessage = (content) => {
+        // Skip if content contains raw objects
+        if (!content || content.includes('[object Object]')) {
+            return;
+        }
+        
         const messages = messagesContainer.querySelectorAll('.message');
         const lastMessage = messages[messages.length - 1];
         
         if (lastMessage && lastMessage.classList.contains('assistant')) {
             const messageContent = lastMessage.querySelector('.message-content');
+            
+            // If this is the first content of the message, clear any placeholders
+            if (!messageContent.innerHTML.trim()) {
+                messageContent.innerHTML = '';
+            }
+            
             messageContent.innerHTML += content;
             
             // Auto-scroll if near bottom
@@ -146,8 +171,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Add user message to UI
         addMessage(content, true);
         
-        // Create placeholder for assistant response
-        addMessage('', false);
+        // Create placeholder for assistant response (but don't show it yet)
+        let assistantMessageDiv = null;
         
         // Send via WebSocket
         if (ws && ws.readyState === WebSocket.OPEN) {
@@ -156,6 +181,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 content: content,
                 id: Date.now().toString()
             }));
+            
+            // Now create the assistant message div to prepare for streaming
+            assistantMessageDiv = document.createElement('div');
+            assistantMessageDiv.className = 'message assistant';
+            
+            const messageContent = document.createElement('div');
+            messageContent.className = 'message-content';
+            // Start empty - will be filled by streaming response
+            
+            assistantMessageDiv.appendChild(messageContent);
+            messagesContainer.appendChild(assistantMessageDiv);
         } else {
             addErrorMessage('Connection lost. Please refresh the page.');
         }
