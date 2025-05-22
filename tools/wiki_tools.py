@@ -14,13 +14,17 @@ def create_wikipedia_tool():
         api_wrapper = WikipediaAPIWrapper(top_k_results=3, doc_content_chars_max=3000)
 
         # Wrap the Wikipedia run to provide error handling and token management
-        def wiki_query_with_handling(*args, **kwargs):
+        def wiki_query_with_handling(query):
             try:
-                result = api_wrapper.run(*args, **kwargs)
+                result = api_wrapper.run(query)
 
                 # Limit result size to avoid token issues
                 if len(result) > 4000:
                     result = result[:4000] + "... [content truncated for brevity]"
+
+                # Add Wikipedia source URL
+                wiki_url = f"https://en.wikipedia.org/wiki/{query.replace(' ', '_')}"
+                result += f"\n\nSources:\n{wiki_url}"
 
                 return result
             except Exception as e:
