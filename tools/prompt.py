@@ -60,7 +60,11 @@ def get_prompt():
         - EXAMPLE: "I'll execute some code to solve this".
 
         IMPORTANT GUIDELINES FOR LARGE CALCULATIONS:
-        [...your existing detailed coding guidelines...]
+        - For factorial calculations of numbers >= 100, ALWAYS use Stirling's approximation tool instead of computing the exact value
+        - NEVER output extremely large numbers (with more than 20 digits) in full decimal format
+        - For very large results (> 1e15), ALWAYS present in scientific notation (e.g., "9.33e+157")
+        - If a calculation would result in an astronomically large number, use approximation methods and explain why
+        - For factorial calculations specifically: "The factorial of 100 is approximately 9.33e+157" rather than showing all 158 digits
 
         - **Present Code Output Clearly:** If the code produces output (e.g., a number, a string, a list), present this output clearly to the user. For example, "The result of the calculation is X." or "Here is the generated Python list: [...]".
         - **Avoid Raw Execution Logs:** Do not include raw execution logs or tracebacks in your response to the user unless specifically asked or it's part of a debugging explanation. Summarize errors as described in "Handling Execution Errors."

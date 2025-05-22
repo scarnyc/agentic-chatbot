@@ -68,6 +68,31 @@ async def create_conversation():
     logger.info(f"Created new conversation: {conversation_id}")
     return {"conversation_id": conversation_id}
 
+def is_obviously_raw_data(text: str) -> bool:
+    """
+    Conservative check for obviously raw data that should not be shown to users.
+    Only blocks very obvious cases to avoid false positives.
+    """
+    if not isinstance(text, str):
+        return True
+    
+    stripped_text = text.strip()
+    if not stripped_text:
+        return False
+    
+    # Check for exact "[object Object]" matches
+    if stripped_text == "[object Object]" or "[object Object]" in stripped_text:
+        return True
+    
+    # Check for obvious JSON structure (starts and ends with braces/brackets + has multiple quotes/colons)
+    if ((stripped_text.startswith("{") and stripped_text.endswith("}")) or 
+        (stripped_text.startswith("[") and stripped_text.endswith("]"))):
+        # Only flag if it has lots of JSON-like syntax
+        if stripped_text.count('"') > 10 and stripped_text.count(':') > 5 and stripped_text.count(',') > 5:
+            return True
+    
+    return False
+
 def is_problematic_content(text: str) -> bool:
     """
     Heuristically checks if the text is a raw data structure or common placeholder.
@@ -80,22 +105,34 @@ def is_problematic_content(text: str) -> bool:
         return False
 
     # Check for common object/array string representations
-    if stripped_text == "[object Object]":
+    if stripped_text == "[object Object]" or "[object Object]" in stripped_text:
         return True
     
     # Check for patterns that look like stringified JSON objects/arrays from tool outputs
-    # (e.g., from the screenshot content)
     if (stripped_text.startswith("{") and stripped_text.endswith("}")) or \
        (stripped_text.startswith("[") and stripped_text.endswith("]")):
         # More specific checks for the kind of content seen in the screenshot
         if '"title":' in stripped_text and '"url":' in stripped_text and '"content":' in stripped_text:
             logger.warning(f"Identified problematic JSON-like string: {stripped_text[:150]}...")
             return True
-        if "Weather in Queens" in stripped_text and "weatherapi.com" in stripped_text: # Specific to weather example
+        if "Weather in Queens" in stripped_text and "weatherapi.com" in stripped_text:
              logger.warning(f"Identified problematic weather API string: {stripped_text[:150]}...")
              return True
+        # Check for other JSON-like patterns that suggest raw tool output
+        # Be more conservative - only flag obvious JSON structures
+        if (stripped_text.count('"') > 6 and stripped_text.count(':') > 3 and stripped_text.count(',') > 5) or \
+           (stripped_text.count(',') > 8 and ('{' in stripped_text or '[' in stripped_text)):
+            logger.warning(f"Identified potential raw tool output: {stripped_text[:150]}...")
+            return True
              
-    # Add more heuristics if needed
+    # Check for common raw data patterns
+    if stripped_text.startswith('{"') or stripped_text.startswith('[{'):
+        return True
+        
+    # Check for multiple object references
+    if stripped_text.count('[object Object]') > 1:
+        return True
+    
     return False
 
 @app.websocket("/ws/{conversation_id}")
@@ -141,22 +178,57 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
                                 for key, value in event.items():
                                     if isinstance(value, dict) and "messages" in value:
                                         for msg_obj in value["messages"]:
-                                            if hasattr(msg_obj, 'role') and msg_obj.role == 'ai' and hasattr(msg_obj, 'content'):
+                                            # Check if this is an AI message (LangChain AIMessage)
+                                            if (hasattr(msg_obj, 'content') and 
+                                                (str(type(msg_obj)).find('AIMessage') != -1 or 
+                                                 (hasattr(msg_obj, 'type') and str(msg_obj.type) == 'ai'))):
                                                 chunk_candidate = msg_obj.content
                                                 
                                                 # Process the chunk candidate
                                                 if chunk_candidate is None:
                                                     continue # Skip None chunks
 
+                                                # Handle different content types from LangChain messages
                                                 if not isinstance(chunk_candidate, str):
-                                                    logger.warning(f"Received non-string chunk from LLM: {type(chunk_candidate)}. Stringifying.")
-                                                    chunk_candidate = str(chunk_candidate)
+                                                    # If it's a list, try to extract text content
+                                                    if isinstance(chunk_candidate, list):
+                                                        text_parts = []
+                                                        for item in chunk_candidate:
+                                                            if isinstance(item, dict):
+                                                                # Handle different content block types
+                                                                if item.get('type') == 'text' and 'text' in item:
+                                                                    text_parts.append(item['text'])
+                                                                elif 'text' in item and not item.get('type') == 'thinking':
+                                                                    # Include text blocks but skip thinking blocks
+                                                                    text_parts.append(item['text'])
+                                                            elif isinstance(item, str):
+                                                                text_parts.append(item)
+                                                        chunk_candidate = ' '.join(text_parts) if text_parts else None
+                                                    else:
+                                                        logger.warning(f"Received non-string chunk from LLM: {type(chunk_candidate)}. Attempting extraction.")
+                                                        # Try to extract text if it's a complex object
+                                                        if hasattr(chunk_candidate, 'content'):
+                                                            chunk_candidate = str(chunk_candidate.content)
+                                                        elif hasattr(chunk_candidate, 'text'):
+                                                            chunk_candidate = str(chunk_candidate.text)
+                                                        else:
+                                                            chunk_candidate = str(chunk_candidate)
+                                                
+                                                if chunk_candidate is None or not isinstance(chunk_candidate, str):
+                                                    continue
 
-                                                if is_problematic_content(chunk_candidate):
-                                                    logger.warning(f"Skipping problematic chunk: {chunk_candidate[:100]}...")
-                                                    continue # Skip this problematic chunk
-
-                                                if chunk_candidate: # Ensure it's a non-empty string after checks
+                                                # Apply less aggressive filtering - only block obvious raw data
+                                                if chunk_candidate.strip() and not is_obviously_raw_data(chunk_candidate):
+                                                    # Add intelligent spacing for sentence boundaries
+                                                    if (accumulated_response_content and 
+                                                        accumulated_response_content[-1] not in ' \n\t' and
+                                                        chunk_candidate[0] not in ' \n\t' and
+                                                        (accumulated_response_content.endswith('.') or 
+                                                         accumulated_response_content.endswith('!') or 
+                                                         accumulated_response_content.endswith('?') or
+                                                         accumulated_response_content.endswith(':'))):
+                                                        chunk_candidate = ' ' + chunk_candidate
+                                                    
                                                     accumulated_response_content += chunk_candidate
                                                     await websocket.send_text(json.dumps({
                                                         "type": "message_chunk",
@@ -164,34 +236,15 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
                                                     }))
                                                     has_sent_chunks = True
                                                     await asyncio.sleep(0.01)
+                                                elif chunk_candidate.strip():
+                                                    logger.warning(f"Skipping raw data chunk: {chunk_candidate[:200]}...")
                             
                             logger.info(f"Streaming complete for ({conversation_id}): {message_content[:100]}...")
                             
                             # Final processing of accumulated content
-                            final_response_content = accumulated_response_content
-                            if is_problematic_content(final_response_content):
-                                logger.error(f"Final accumulated response is still problematic: {final_response_content[:200]}... Replacing.")
-                                if has_sent_chunks: # If some valid chunks were sent, maybe just indicate an issue at the end
-                                     final_response_content = "\n\n[Some parts of the response could not be displayed correctly.]"
-                                     # Send this as a final chunk
-                                     await websocket.send_text(json.dumps({
-                                        "type": "message_chunk",
-                                        "content": final_response_content
-                                     }))
-                                     accumulated_response_content += final_response_content # for history
-                                else: # No valid chunks were ever sent
-                                    final_response_content = "I encountered an issue formatting the response. Please try rephrasing your query."
-                                    # Send this as the only chunk if nothing else was sent
-                                    await websocket.send_text(json.dumps({
-                                        "type": "message_chunk",
-                                        "content": final_response_content
-                                    }))
-                                accumulated_response_content = final_response_content
-
-
-                            if not accumulated_response_content.strip() and not has_sent_chunks: # If response is empty and nothing was sent
-                               logger.warning("Final response is empty after filtering. Sending a generic message.")
-                               final_response_content = "I was unable to generate a textual response for this query. Please try again."
+                            if not accumulated_response_content.strip() and not has_sent_chunks:
+                               logger.warning("No valid content was generated. Sending fallback message.")
+                               final_response_content = "I was unable to generate a response for this query. Please try again."
                                await websocket.send_text(json.dumps({
                                    "type": "message_chunk",
                                    "content": final_response_content,

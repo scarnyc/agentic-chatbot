@@ -85,9 +85,13 @@ body {
 
 .message-content {
     padding: 1rem;
-    border-radius: 8px;
-    max-width: 80%;
+    border-radius: 0.5rem;
+    max-width: min(48rem, 80%);
+    min-width: 0;
     line-height: 1.5;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
 }
 
 .user .message-content {
@@ -171,8 +175,20 @@ code {
 }
 
 /* Responsive adjustments */
-@media (max-width: 768px) {
+@media (max-width: 48rem) {
     .message-content {
-        max-width: 90%;
+        max-width: min(32rem, 95%);
+    }
+    
+    .app-container {
+        max-width: 100%;
+    }
+    
+    .chat-container {
+        padding: 0.5rem;
+    }
+    
+    .messages-container {
+        padding: 0.5rem;
     }
 }

@@ -66,8 +66,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = JSON.parse(event.data);
             
             if (data.type === 'message_chunk') {
-                // Ensure content is a string and not an object stringification
-                if (typeof data.content === 'string' && !data.content.includes('[object Object]')) {
+                // Conservative content validation - only block obvious issues
+                if (typeof data.content === 'string' && 
+                    !data.content.includes('[object Object]') && 
+                    data.content.trim().length > 0 &&
+                    // Only block if it looks like obvious JSON with lots of structure
+                    !(data.content.trim().startsWith('{') && data.content.includes('","') && data.content.includes('":"'))) {
                     appendToAssistantMessage(data.content);
                 } else {
                     console.warn("Skipping message_chunk due to invalid content:", data.content);
@@ -126,13 +130,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Append content to the current assistant message (for streaming)
     const appendToAssistantMessage = (chunk) => {
-        // Ensure chunk is a string and not an object stringification
-        if (typeof chunk !== 'string' || chunk.includes('[object Object]')) {
+        // Conservative validation - only reject obvious problems
+        if (typeof chunk !== 'string' || chunk.includes('[object Object]') || !chunk.trim()) {
             console.warn("Skipping appendToAssistantMessage due to invalid chunk:", chunk);
             return;
         }
 
-        // If there's no current assistant message div, create one
+        // If there's no current assistant message div, create one ONLY when we have valid content
         if (!currentAssistantMessageDiv) {
             currentAssistantMessageDiv = document.createElement('div');
             currentAssistantMessageDiv.className = 'message assistant';
