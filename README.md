@@ -44,7 +44,7 @@ A powerful agentic workflow system built with FastAPI, LangGraph, and Anthropic 
 💻 **Modern Architecture**
 - FastAPI backend with WebSocket support
 - LangGraph for workflow orchestration
-- Anthropic Claude 3.7 Sonnet with thinking capabilities
+- Anthropic Claude 4 Sonnet with thinking capabilities
 - Persistent conversation memory
 
 ## Quick Start
@@ -219,7 +219,7 @@ agentic-workflow/
 
 ### Model Configuration
 
-The system uses **Claude 3.7 Sonnet** with:
+The system uses **Claude 4 Sonnet** with:
 - **Max tokens**: 1,500
 - **Thinking enabled**: 1,024 token budget
 - **Tool binding**: All available tools
@@ -429,17 +429,11 @@ User Query
     │
     ▼
 ┌───────────────┐
-│ Supervisor    │
-│ (Claude 3.7)  │
+│ Agent         │
+│ (Claude 4)  │
 └───────────────┘
     │
     ├─────────────────┬─────────────────┐
-    │                 │                 │
-    ▼                 ▼                 ▼
-┌─────────────┐  ┌─────────────┐  ┌─────────────┐
-│Search Agent │  │ Code Agent  │  │ Wiki Agent  │
-│ (Claude 3.7)│  │(Claude 3.7) │  │(Claude 3.7) │
-└─────────────┘  └─────────────┘  └─────────────┘
     │                 │                 │
     ▼                 ▼                 ▼
 ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
