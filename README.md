@@ -1,4 +1,4 @@
-# AI by Design Copilot
+# AI by Design Agent
 
 A powerful agentic workflow system built with FastAPI, LangGraph, and Anthropic Claude that provides an intelligent AI assistant capable of web search, Wikipedia queries, and secure code execution.
 
