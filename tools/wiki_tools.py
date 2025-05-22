@@ -1,8 +1,11 @@
 # tools/wiki_tools.py
 
+import logging
 from langchain_core.tools import Tool
 from langchain_community.utilities import WikipediaAPIWrapper
 from core.cache import cache
+
+logger = logging.getLogger('api_calls')
 
 def create_wikipedia_tool():
     """
@@ -24,11 +27,11 @@ def create_wikipedia_tool():
             
             cached_result = cache.get('wikipedia', query, **cache_key_params)
             if cached_result is not None:
-                print(f"Cache hit for Wikipedia search: {query[:50]}...")
+                logger.info(f"Cache hit for Wikipedia search: {query[:50]}...")
                 return cached_result
             
             try:
-                print(f"Making Wikipedia API call for: {query[:50]}...")
+                logger.info(f"Making Wikipedia API call for: {query[:50]}...")
                 result = api_wrapper.run(query)
 
                 # Limit result size to avoid token issues
@@ -47,7 +50,7 @@ def create_wikipedia_tool():
             except Exception as e:
                 error_result = "Wikipedia search encountered an error. Please try a different query or check your connection."
                 
-                print(f"Error in Wikipedia search: {e}")
+                logger.error(f"Error in Wikipedia search: {e}")
                 
                 # Cache error results for shorter time (5 minutes)
                 cache.set('wikipedia', query, error_result, ttl=300, **cache_key_params)
@@ -61,9 +64,9 @@ def create_wikipedia_tool():
             description="Searches Wikipedia for information about a given topic. Use for historical, scientific, or general knowledge queries."
         )
 
-        print("Successfully initialized Wikipedia tool")
+        logger.info("Successfully initialized Wikipedia tool")
         return wiki_tool
 
     except Exception as e:
-        print(f"Failed to initialize Wikipedia tool: {e}")
+        logger.error(f"Failed to initialize Wikipedia tool: {e}")
         return None

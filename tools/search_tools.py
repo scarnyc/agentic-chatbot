@@ -2,10 +2,13 @@
 
 import re
 import json
+import logging
 from typing import Dict, Any, List
 from langchain_core.tools import Tool
 from langchain_community.tools.tavily_search.tool import TavilySearchResults
 from core.cache import cache
+
+logger = logging.getLogger('api_calls')
 
 
 class TavilyResultTracker:
@@ -156,11 +159,11 @@ def extract_urls_from_tavily_result(content: str) -> List[str]:
                 found_urls = re.findall(url_pattern, match)
                 urls.extend(found_urls)
             except Exception as e:
-                print(f"Error extracting URLs from Tavily result: {e}")
+                logger.error(f"Error extracting URLs from Tavily result: {e}")
 
         return urls[:5]
     except Exception as e:
-        print(f"Error in extract_urls_from_tavily_result: {e}")
+        logger.error(f"Error in extract_urls_from_tavily_result: {e}")
         return []
 
 
@@ -190,7 +193,7 @@ def format_citations(content: str) -> str:
 
         return content
     except Exception as e:
-        print(f"Error in format_citations: {e}")
+        logger.error(f"Error in format_citations: {e}")
         return content
 
 
@@ -216,11 +219,11 @@ def create_tavily_search_tool(tavily_api_key):
             
             cached_result = cache.get('tavily', query, **cache_key_params)
             if cached_result is not None:
-                print(f"Cache hit for Tavily search: {query[:50]}...")
+                logger.info(f"Cache hit for Tavily search: {query[:50]}...")
                 return cached_result
             
             try:
-                print(f"Making Tavily API call for: {query[:50]}...")
+                logger.info(f"Making Tavily API call for: {query[:50]}...")
                 results = TavilySearchResults(api_key=tavily_api_key,
                                              k=3,
                                              include_raw_content=True,
@@ -246,7 +249,7 @@ def create_tavily_search_tool(tavily_api_key):
                     "title": "Search Error"
                 }]
                 
-                print(f"Error in Tavily search: {e}")
+                logger.error(f"Error in Tavily search: {e}")
                 
                 # Cache error results for shorter time (5 minutes) to avoid repeated failures
                 cache.set('tavily', query, error_result, ttl=300, **cache_key_params)
@@ -260,10 +263,9 @@ def create_tavily_search_tool(tavily_api_key):
             "Search the web for current information. Useful for questions about current events or trending topics."
         )
 
-        print(
-            "Successfully initialized Tavily Search with token management")
+        logger.info("Successfully initialized Tavily Search with token management")
         return search_tool
 
     except Exception as e:
-        print(f"Failed to initialize Tavily Search: {e}")
+        logger.error(f"Failed to initialize Tavily Search: {e}")
         return None

@@ -168,15 +168,15 @@ def create_anthropic_model_with_error_handling():
 
 anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
 if not anthropic_api_key:
-    print("ANTHROPIC_API_KEY environment variable not set.")
-    print(
+    logger.error("ANTHROPIC_API_KEY environment variable not set.")
+    logger.error(
         "Please set the ANTHROPIC_API_KEY environment variable in your .env file"
     )
 
 tavily_api_key = os.getenv("TAVILY_API_KEY")
 if not tavily_api_key:
-    print("TAVILY_API_KEY environment variable not set.")
-    print(
+    logger.warning("TAVILY_API_KEY environment variable not set.")
+    logger.warning(
         "Please set the TAVILY_API_KEY environment variable in your .env file"
     )
 
