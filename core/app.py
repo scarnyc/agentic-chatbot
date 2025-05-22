@@ -38,7 +38,7 @@ if not tavily_api_key:
 if anthropic_api_key:
     try:
         llm = ChatAnthropic(
-            model_name="claude-3-7-sonnet-latest",
+            model_name="claude-sonnet-4-20250514",
             anthropic_api_key=anthropic_api_key,
             max_tokens=1500,
             thinking={
