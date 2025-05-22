@@ -324,6 +324,67 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **FastAPI** for modern web framework
 - **Community** for inspiration and feedback
 
+## Architecture Diagram
+
+```
+User Query
+    │
+    ▼
+┌───────────────┐
+│ Supervisor    │
+│ (Claude 3.7)  │
+└───────────────┘
+    │
+    ├─────────────────┬─────────────────┐
+    │                 │                 │
+    ▼                 ▼                 ▼
+┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+│Search Agent │  │ Code Agent  │  │ Wiki Agent  │
+│ (Claude 3.7)│  │(Claude 3.7) │  │(Claude 3.7) │
+└─────────────┘  └─────────────┘  └─────────────┘
+    │                 │                 │
+    ▼                 ▼                 ▼
+┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+│Tavily Search│  │Python REPL  │  │Wikipedia API│
+└─────────────┘  └─────────────┘  └─────────────┘
+
+```
+## Roadmap
+
+### v0
+- Comprehensive error handling
+- Handling stop reasons
+- Caching Results: Add a simple cache for commonly requested information to reduce API calls
+- Progressive Enhancement: In the frontend, show typing indicators during tool transitions for a more natural feel
+- Error Recovery: Implement automatic retries for temporary API failures
+  
+### v1
+- Generative UI
+- User Feedback Loop: Add a thumbs up/down mechanism to collect feedback on answers
+- Support for GPT 4.1 for writing
+- Longterm Agentic Memory
+  
+### v2
+- Human in the loop (stop and ask for input)
+- Log-in screen with Google oAuth for sign-in
+- MCP Servers
+- File System
+- Evals, monitoring & logging
+
+### v3
+- Planning: research, generation, reflection
+- RAG, Deep Research w/ Perplexity
+- Upgraded web search with Google SerpAPI
+- Persist user Chat history (UI)
+- Experiment with thinking budget / prompt caching
+- Show thinking output
+
+### V4
+- Slack, LinkedIn, gmail, Nasa toolkit, Substack
+- User-input OpenAI / Gemini API Key
+- Security with Cloudflare
+- App optimized for security, speed & efficiency
+
 ---
 
 **Built with ❤️ for intelligent automation**
