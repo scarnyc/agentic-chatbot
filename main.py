@@ -14,7 +14,7 @@ import uuid
 import json
 import asyncio
 import logging
-from core.app import langgraph_app # Assuming core.app contains your LangGraph setup
+from core.app import langgraph_app, process_conversation_for_memory, get_memory_stats # Assuming core.app contains your LangGraph setup
 from core.cache import get_cache_stats, clear_cache
 from core.error_recovery import get_error_recovery_stats
 
@@ -87,13 +87,15 @@ async def clear_cache_endpoint():
 
 @app.get("/api/health")
 async def health_check():
-    """Health check endpoint with cache and error recovery stats."""
+    """Health check endpoint with cache, error recovery, and memory stats."""
     cache_stats = get_cache_stats()
     error_stats = get_error_recovery_stats()
+    memory_stats = get_memory_stats()
     return JSONResponse(content={
         "status": "healthy",
         "cache": cache_stats,
         "error_recovery": error_stats,
+        "memory": memory_stats,
         "active_conversations": len(conversations)
     })
 
@@ -101,6 +103,34 @@ async def health_check():
 async def get_error_recovery_statistics():
     """Get error recovery statistics."""
     return JSONResponse(content=get_error_recovery_stats())
+
+@app.get("/api/memory/stats")
+async def get_memory_statistics():
+    """Get long-term memory statistics."""
+    return JSONResponse(content=get_memory_stats())
+
+@app.post("/api/memory/process/{conversation_id}")
+async def process_conversation_memory(conversation_id: str):
+    """Manually process a conversation for memory extraction."""
+    if conversation_id not in conversations:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    
+    # Convert conversation messages to proper format for memory processing
+    messages = []
+    for msg in conversations[conversation_id].messages:
+        if msg["role"] == "user":
+            messages.append({"role": "user", "content": msg["content"]})
+        elif msg["role"] == "assistant":
+            messages.append({"role": "assistant", "content": msg["content"]})
+    
+    # Process for memory
+    process_conversation_for_memory(messages, conversation_id)
+    
+    return JSONResponse(content={
+        "message": "Conversation processed for memory extraction",
+        "conversation_id": conversation_id,
+        "message_count": len(messages)
+    })
 
 def is_obviously_raw_data(text: str) -> bool:
     """
@@ -354,6 +384,25 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
         logger.error(f"Unexpected WebSocket error ({conversation_id}): {e}", exc_info=True)
     finally:
         manager.disconnect(conversation_id)
+        
+        # Process conversation for long-term memory when disconnecting
+        if conversation_id in conversations and len(conversations[conversation_id].messages) > 1:
+            try:
+                # Convert conversation messages to proper format for memory processing
+                messages = []
+                for msg in conversations[conversation_id].messages:
+                    if msg["role"] == "user":
+                        from langchain_core.messages import HumanMessage
+                        messages.append(HumanMessage(content=msg["content"]))
+                    elif msg["role"] == "assistant":
+                        from langchain_core.messages import AIMessage
+                        messages.append(AIMessage(content=msg["content"]))
+                
+                # Process for memory extraction
+                process_conversation_for_memory(messages, conversation_id)
+                logger.info(f"Processed conversation {conversation_id} for long-term memory on disconnect")
+            except Exception as memory_error:
+                logger.error(f"Error processing conversation {conversation_id} for memory: {memory_error}")
 
 if __name__ == "__main__":
     import uvicorn

@@ -18,6 +18,8 @@ from langgraph.store.memory import InMemoryStore
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from anthropic import APIError, RateLimitError, InternalServerError
 from core.error_recovery import ErrorRecoveryManager, RetryConfig, get_error_recovery_stats
+from core.long_term_memory import LongTermMemoryStore
+from core.memory_agent import MemoryEnhancedAgent, create_memory_enhanced_system_message
 
 from tools.prompt import get_prompt
 from tools.wiki_tools import create_wikipedia_tool
@@ -38,6 +40,11 @@ error_recovery_config = RetryConfig(
     jitter_factor=0.15  # Slightly more jitter
 )
 error_recovery_manager = ErrorRecoveryManager(error_recovery_config)
+
+# Initialize long-term memory system
+openai_api_key = os.getenv("OPENAI_API_KEY")
+long_term_memory_store = LongTermMemoryStore(openai_api_key=openai_api_key)
+memory_agent = MemoryEnhancedAgent(long_term_memory_store)
 
 class AnthropicStopReasonHandler:
     """Handles Anthropic API stop reasons and provides appropriate responses."""
@@ -220,6 +227,7 @@ def should_continue(state: MessagesState) -> str:
 def call_model(state: MessagesState) -> dict:
     """
     The main agent node function. Invokes the LLM with advanced error recovery and stop reason handling.
+    Enhanced with long-term memory context.
     Args:
         state: The current state of the graph.
     Returns:
@@ -229,7 +237,22 @@ def call_model(state: MessagesState) -> dict:
     
     def model_operation():
         """The actual model invocation wrapped for error recovery."""
-        response = model_chain.invoke({"messages": messages})
+        # Get memory context for the current query
+        memory_context = ""
+        if messages and isinstance(messages[-1], HumanMessage):
+            memory_context = memory_agent.get_memory_context_for_message(messages[-1].content)
+        
+        # Create enhanced prompt with memory context
+        enhanced_prompt = create_memory_enhanced_system_message(memory_context, get_prompt())
+        
+        # Create temporary prompt template with enhanced system message
+        enhanced_prompt_template = ChatPromptTemplate.from_messages([
+            ("system", enhanced_prompt),
+            MessagesPlaceholder(variable_name="messages"),
+        ])
+        enhanced_model_chain = enhanced_prompt_template | model_with_tools
+        
+        response = enhanced_model_chain.invoke({"messages": messages})
         
         # Log request ID if available for support tracking
         if hasattr(response, 'response_metadata') and 'request-id' in response.response_metadata:
@@ -314,3 +337,18 @@ workflow.add_edge("tools", "chatbot")
 memory = MemorySaver()
 store = InMemoryStore()
 langgraph_app = workflow.compile(checkpointer=memory, store=store)
+
+def process_conversation_for_memory(messages: list, conversation_id: str):
+    """
+    Process a completed conversation to extract and store long-term memories.
+    This should be called after a conversation concludes or at regular intervals.
+    """
+    try:
+        memory_agent.process_conversation(messages, conversation_id)
+        logger.info(f"Processed conversation {conversation_id} for long-term memory")
+    except Exception as e:
+        logger.error(f"Error processing conversation {conversation_id} for memory: {e}")
+
+def get_memory_stats() -> dict:
+    """Get statistics about the long-term memory system."""
+    return long_term_memory_store.get_memory_stats()

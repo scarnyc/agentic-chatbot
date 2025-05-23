@@ -35,6 +35,13 @@ A powerful agentic workflow system built with FastAPI, LangGraph, and Anthropic 
 - Real-time cache performance monitoring
 - Automatic LRU eviction
 
+🧠 **Long-term Agentic Memory**
+- **Semantic Memory**: Facts, preferences, skills, and domain knowledge
+- **Episodic Memory**: Conversation summaries with context and outcomes
+- **Procedural Memory**: Learned patterns and successful interaction sequences
+- **OpenAI Embeddings**: Semantic search for memory retrieval
+- **Persistent Storage**: Local JSON-based memory with automatic pruning
+
 🔍 **Comprehensive Monitoring**
 - Real-time system health dashboard
 - Cache hit rate and performance metrics
@@ -73,6 +80,7 @@ A powerful agentic workflow system built with FastAPI, LangGraph, and Anthropic 
    ```env
    ANTHROPIC_API_KEY=your_anthropic_api_key_here
    TAVILY_API_KEY=your_tavily_api_key_here
+   OPENAI_API_KEY=your_openai_api_key_here  # Optional: For long-term memory
    ```
 
 4. **Run the application**
@@ -100,7 +108,9 @@ agentic-workflow/
 │   ├── error_recovery.py        # Circuit breaker pattern & error handling
 │   ├── logging_config.py        # Comprehensive logging system
 │   ├── cache_monitor.py         # Real-time cache monitoring utility
-│   └── error_recovery_monitor.py # Error recovery monitoring & trends
+│   ├── error_recovery_monitor.py # Error recovery monitoring & trends
+│   ├── long_term_memory.py      # OpenAI embeddings-based memory store
+│   └── memory_agent.py          # Memory-enhanced agent with extraction
 ├── tools/                        # Modular tool implementations
 │   ├── code_tools.py            # Python execution with security
 │   ├── search_tools.py          # Tavily web search integration
@@ -116,23 +126,29 @@ agentic-workflow/
 │   └── js/app.js                # WebSocket client logic
 ├── templates/
 │   └── index.html               # Main chat interface
-└── logs/                         # Application logs (auto-created)
-    ├── app.log                  # General application logs
-    ├── error.log                # Error-level logs
-    ├── cache.log                # Cache operations
-    ├── error_recovery.log       # Error recovery events
-    ├── websocket.log            # WebSocket connections
-    └── api_calls.log            # API tool usage
+├── logs/                         # Application logs (auto-created)
+│   ├── app.log                  # General application logs
+│   ├── error.log                # Error-level logs
+│   ├── cache.log                # Cache operations
+│   ├── error_recovery.log       # Error recovery events
+│   ├── websocket.log            # WebSocket connections
+│   └── api_calls.log            # API tool usage
+└── memory/                       # Long-term memory storage (auto-created)
+    ├── semantic_memories.json   # Facts, preferences, skills
+    ├── episodic_memories.json   # Conversation summaries  
+    └── procedural_memories.json # Learned patterns
 ```
 
 ### Data Flow
 
 1. **User Input** → WebSocket connection established
-2. **Message Processing** → LangGraph workflow orchestration
-3. **Tool Execution** → Wikipedia, web search, or code execution
-4. **Response Streaming** → Real-time chunks via WebSocket
-5. **Content Filtering** → Intelligent formatting and validation
-6. **UI Display** → Responsive message bubbles with proper spacing
+2. **Memory Retrieval** → Semantic search for relevant context
+3. **Message Processing** → LangGraph workflow orchestration with memory context
+4. **Tool Execution** → Wikipedia, web search, or code execution
+5. **Response Streaming** → Real-time chunks via WebSocket
+6. **Content Filtering** → Intelligent formatting and validation
+7. **Memory Extraction** → Automatic memory processing on conversation end
+8. **UI Display** → Responsive message bubbles with proper spacing
 
 ## API Endpoints
 
@@ -144,6 +160,8 @@ agentic-workflow/
 - `GET /api/cache/stats` - Cache performance statistics
 - `POST /api/cache/clear` - Clear all cache entries
 - `GET /api/error-recovery/stats` - Error recovery and circuit breaker status
+- `GET /api/memory/stats` - Long-term memory statistics
+- `POST /api/memory/process/{conversation_id}` - Process conversation for memory extraction
 
 ### WebSocket Endpoints
 
@@ -194,6 +212,52 @@ agentic-workflow/
 
 **Example:** *"Calculate the factorial of 100"*
 
+### 🧠 Long-term Memory System
+
+The agent employs a sophisticated three-tier memory system using OpenAI embeddings for semantic search and retrieval:
+
+#### Memory Types
+
+**📝 Semantic Memory**
+- Stores factual knowledge, user preferences, and skills
+- Automatically extracts information from user statements
+- Categories: facts, preferences, skills, domain knowledge
+- Example: "I prefer Python programming" → stored as preference
+
+**📚 Episodic Memory** 
+- Records conversation summaries with context
+- Tracks tools used, outcomes, and emotional context
+- Importance scoring for memory retention
+- Example: "User asked about data science, used search tool, successful outcome"
+
+**⚙️ Procedural Memory**
+- Learns successful interaction patterns
+- Stores trigger conditions → action sequences
+- Success rate tracking and pattern optimization
+- Example: "Code request → analyze requirements → generate code → explain"
+
+#### Memory Storage
+
+```
+📁 memory/
+├── semantic_memories.json    # Facts, preferences, skills
+├── episodic_memories.json    # Conversation summaries  
+└── procedural_memories.json  # Learned patterns
+```
+
+Each memory includes:
+- **Content**: The actual memory information
+- **Embedding**: 1536-dimensional OpenAI vector for semantic search
+- **Metadata**: Confidence scores, timestamps, usage counts
+- **Context**: Category, source, importance scores
+
+#### Memory Integration
+
+1. **Context Retrieval**: Every user message triggers semantic search
+2. **Enhanced Prompts**: Relevant memories automatically added to system prompts
+3. **Automatic Extraction**: Conversations processed for memory on disconnect
+4. **Smart Pruning**: LRU-based memory management with configurable limits
+
 ### 🔢 Advanced Mathematics
 - Stirling's approximation for large factorials
 - Scientific notation formatting
@@ -216,6 +280,9 @@ agentic-workflow/
 |----------|-------------|----------|
 | `ANTHROPIC_API_KEY` | Anthropic Claude API key | Yes |
 | `TAVILY_API_KEY` | Tavily search API key | Yes |
+| `OPENAI_API_KEY` | OpenAI API key for embeddings | No* |
+
+*Required for long-term memory functionality
 
 ### Model Configuration
 
@@ -257,6 +324,22 @@ curl -X POST http://localhost:8000/api/cache/clear
 
 # Run cache benchmark
 python core/cache_monitor.py --benchmark
+```
+
+### Long-term Memory Management
+
+```bash
+# View memory statistics
+curl http://localhost:8000/api/memory/stats
+
+# Process conversation for memory extraction
+curl -X POST http://localhost:8000/api/memory/process/{conversation_id}
+
+# Test memory system
+python test_memory.py
+
+# Memory storage location
+ls -la memory/
 ```
 
 ### Testing
@@ -399,8 +482,12 @@ User Query
 - Progressive Enhancement: In the frontend, show typing indicators during tool transitions for a more natural feel
 - Error Recovery: Implement automatic retries for temporary API failures
   
-### v1
-- Longterm Agentic Memory
+### v1 ✅
+- Long-term Agentic Memory (Semantic, Episodic, Procedural)
+- OpenAI Embeddings for semantic search
+- Automatic memory extraction and retrieval
+
+### v1.1
 - Log-in screen with Google oAuth for sign-in
 - MCP Servers
 - Show thinking output
