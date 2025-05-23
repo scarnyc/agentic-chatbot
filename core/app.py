@@ -159,12 +159,12 @@ def create_anthropic_model_with_error_handling():
             model_name="claude-sonnet-4-20250514",
             anthropic_api_key=anthropic_api_key,
             max_tokens=1500,
-            thinking={
-                "type": "enabled",
-                "budget_tokens": 16384  # Increased for extended thinking
+            # Enable thinking with budget_tokens as required by API
+            thinking={"type": "enabled", "budget_tokens": 16384},
+            # Enable interleaved thinking via extra headers
+            extra_headers={
+                "anthropic-beta": "interleaved-thinking-2025-05-14"
             },
-            # Enable interleaved thinking with tool use
-            beta="interleaved-thinking-2025-05-14",
             # Enable keep-alive as recommended by Anthropic
             timeout=300.0,  # 5 minute timeout
         )
@@ -263,9 +263,16 @@ def call_model(state: MessagesState) -> dict:
         
         # Extract thinking content if available
         thinking_content = None
-        if hasattr(response, 'additional_kwargs') and 'thinking' in response.additional_kwargs:
-            thinking_content = response.additional_kwargs['thinking']
-            logger.info(f"Extracted thinking content: {len(thinking_content)} characters")
+        logger.info(f"Response has additional_kwargs: {hasattr(response, 'additional_kwargs')}")
+        if hasattr(response, 'additional_kwargs'):
+            logger.info(f"Additional kwargs keys: {list(response.additional_kwargs.keys())}")
+            if 'thinking' in response.additional_kwargs:
+                thinking_content = response.additional_kwargs['thinking']
+                logger.info(f"Extracted thinking content: {len(thinking_content)} characters")
+            else:
+                logger.info("No 'thinking' key found in additional_kwargs")
+        else:
+            logger.info("Response has no additional_kwargs attribute")
         
         # Handle stop reasons
         stop_handler = AnthropicStopReasonHandler()
