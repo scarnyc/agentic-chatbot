@@ -524,11 +524,12 @@ User Query
 - Log-in screen with Google oAuth for sign-in
 - MCP Servers
 - Show thinking output
+- vision, PDF support
   
 ### v2
 - File System
 - Human in the loop (stop and ask for input)
-- Evals
+- Evals (https://docs.anthropic.com/en/docs/test-and-evaluate/strengthen-guardrails/reduce-hallucinations)
 - RL fine-tuning with GRPO w/ thumbs up and thumbs down user feedback
 - Support for GPT 4.1 for writing (Tool Call)
 - Persist user Chat history (UI)
