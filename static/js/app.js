@@ -119,63 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     
-    // Thinking content display functions
-    let currentThinkingDiv = null;
-    let thinkingToggleState = localStorage.getItem('thinkingToggle') !== 'false'; // Default to true
-    
-    const displayThinkingContent = (thinkingContent) => {
-        console.log('displayThinkingContent called with:', thinkingContent.length + ' characters', 'Toggle state:', thinkingToggleState);
-        
-        // Only display if thinking toggle is enabled
-        if (!thinkingToggleState) {
-            console.log('Thinking toggle disabled, skipping display');
-            return;
-        }
-        
-        // Hide typing indicator
-        hideTypingIndicator();
-        
-        // Always create a new thinking display for each conversation response
-        currentThinkingDiv = document.createElement('div');
-        currentThinkingDiv.className = 'message assistant thinking-display';
-        
-        const messageContent = document.createElement('div');
-        messageContent.className = 'message-content thinking-content';
-        
-        // Add thinking header with toggle
-        const thinkingHeader = document.createElement('div');
-        thinkingHeader.className = 'thinking-header';
-        thinkingHeader.innerHTML = `
-            <span class="thinking-icon">🤔</span>
-            <span class="thinking-title">Claude's Thinking</span>
-            <button class="thinking-toggle" onclick="toggleThinkingExpanded(this)">▼</button>
-        `;
-        
-        const thinkingText = document.createElement('div');
-        thinkingText.className = 'thinking-text';
-        thinkingText.textContent = thinkingContent;
-        
-        messageContent.appendChild(thinkingHeader);
-        messageContent.appendChild(thinkingText);
-        currentThinkingDiv.appendChild(messageContent);
-        messagesContainer.appendChild(currentThinkingDiv);
-        
-        scrollToBottom();
-    };
-    
-    // Global function for thinking toggle (called from button)
-    window.toggleThinkingExpanded = (button) => {
-        const thinkingText = button.closest('.message-content').querySelector('.thinking-text');
-        const isExpanded = thinkingText.style.display !== 'none';
-        
-        if (isExpanded) {
-            thinkingText.style.display = 'none';
-            button.textContent = '▶';
-        } else {
-            thinkingText.style.display = 'block';
-            button.textContent = '▼';
-        }
-    };
+    // Removed thinking display functionality - keeping backend thinking enabled for quality
     
     // Initialize conversation
     const initConversation = async () => {
@@ -235,15 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     console.warn("Skipping message_chunk due to invalid content:", data.content);
                 }
-            } else if (data.type === 'thinking') {
-                // Handle thinking content
-                console.log('Received thinking content:', data.content ? data.content.length + ' characters' : 'empty');
-                if (data.content && data.content.trim()) {
-                    displayThinkingContent(data.content);
-                } else {
-                    // Show thinking indicator if no content
-                    showTypingIndicator("Thinking");
-                }
+            // Thinking content handling removed - keeping backend thinking for quality
             } else if (data.type === 'tool_start') {
                 // Show tool-specific typing indicator
                 const toolName = data.tool_name || 'tool';
@@ -280,7 +216,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Hide typing indicator and ensure message is complete
                 hideTypingIndicator();
                 currentAssistantMessageDiv = null; // Reset for the next message
-                currentThinkingDiv = null; // Reset thinking display for next message
                 setTimeout(scrollToBottom, 100);
             } else if (data.type === 'error') {
                 hideTypingIndicator();
@@ -394,9 +329,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Reset current assistant message div for the new response
         currentAssistantMessageDiv = null;
         
-        // Reset thinking display for new conversation turn
-        currentThinkingDiv = null; 
-        
         // Show initial typing indicator
         showTypingIndicator("Thinking");
         
@@ -430,23 +362,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // Initialize thinking toggle
-    const thinkingToggle = document.getElementById('thinking-toggle');
-    thinkingToggle.checked = thinkingToggleState;
-    
-    thinkingToggle.addEventListener('change', (e) => {
-        thinkingToggleState = e.target.checked;
-        localStorage.setItem('thinkingToggle', thinkingToggleState);
-        
-        // Hide/show existing thinking displays
-        const thinkingDisplays = document.querySelectorAll('.thinking-display');
-        thinkingDisplays.forEach(display => {
-            display.style.display = thinkingToggleState ? 'flex' : 'none';
-        });
-        
-        // Also update the global state for new thinking displays
-        currentThinkingDiv = null;
-    });
+    // Thinking toggle removed - backend thinking still enabled for quality
     
     // Initialize
     initConversation();
