@@ -4,16 +4,26 @@ This agent is capable of using Tavily web search, and executing code;
 It also has access to Wikipedia info while incorporating memory.
 """
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import uuid
 import json
 import asyncio
 import logging
+import base64
+import io
+
+# Handle PIL import gracefully
+try:
+    from PIL import Image
+    HAS_PIL = True
+except ImportError:
+    HAS_PIL = False
+    print("Warning: PIL (Pillow) not available. Image processing will be limited.")
 from core.app import langgraph_app, process_conversation_for_memory, get_memory_stats # Assuming core.app contains your LangGraph setup
 from core.cache import get_cache_stats, clear_cache
 from core.error_recovery import get_error_recovery_stats
@@ -131,6 +141,135 @@ async def process_conversation_memory(conversation_id: str):
         "conversation_id": conversation_id,
         "message_count": len(messages)
     })
+
+@app.post("/api/upload")
+async def upload_file(
+    file: UploadFile = File(...),
+    message: Optional[str] = Form(None),
+    conversation_id: str = Form(...)
+):
+    """Handle file upload and analysis."""
+    try:
+        # Validate conversation exists
+        if conversation_id not in conversations:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        
+        # Validate file type
+        allowed_types = {
+            'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+            'application/pdf'
+        }
+        if file.content_type not in allowed_types:
+            raise HTTPException(
+                status_code=400, 
+                detail="Unsupported file type. Please upload an image (JPEG, PNG, GIF, WebP) or PDF."
+            )
+        
+        # Validate file size (10MB limit)
+        max_size = 10 * 1024 * 1024  # 10MB
+        file_content = await file.read()
+        if len(file_content) > max_size:
+            raise HTTPException(status_code=400, detail="File size must be less than 10MB")
+        
+        # Process the file based on type
+        if file.content_type.startswith('image/'):
+            analysis = await process_image_file(file_content, file.filename, message)
+        elif file.content_type == 'application/pdf':
+            analysis = await process_pdf_file(file_content, file.filename, message)
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported file type")
+        
+        # Add the analysis to conversation history
+        user_message = message or f"Please analyze this file: {file.filename}"
+        conversations[conversation_id].messages.append({
+            "role": "user", 
+            "content": user_message
+        })
+        conversations[conversation_id].messages.append({
+            "role": "assistant",
+            "content": analysis
+        })
+        
+        logger.info(f"File processed successfully: {file.filename} for conversation {conversation_id}")
+        
+        return JSONResponse(content={
+            "analysis": analysis,
+            "filename": file.filename,
+            "file_type": file.content_type
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"File upload error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to process file: {str(e)}")
+
+async def process_image_file(file_content: bytes, filename: str, user_message: Optional[str]) -> str:
+    """Process uploaded image file."""
+    try:
+        # Convert image to base64
+        image_base64 = base64.b64encode(file_content).decode('utf-8')
+        
+        # Use the existing unified multimodal tools
+        from tools.unified_multimodal_tools import analyze_image_and_store
+        
+        # Create analysis request
+        analysis_request = user_message or "Analyze this image and describe what you see in detail"
+        
+        # Analyze the image
+        result = analyze_image_and_store.invoke({
+            "image_base64": image_base64,
+            "analysis_request": analysis_request,
+            "store_in_memory": True,
+            "category": "uploaded_image"
+        })
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Image processing error: {e}")
+        return f"Error processing image: {str(e)}"
+
+async def process_pdf_file(file_content: bytes, filename: str, user_message: Optional[str]) -> str:
+    """Process uploaded PDF file."""
+    try:
+        # For now, provide basic PDF handling since we don't have PDF text extraction
+        # In the future, this could be enhanced with PDF parsing libraries
+        
+        file_size_mb = len(file_content) / (1024 * 1024)
+        
+        analysis = f"""📄 **PDF File Analysis: {filename}**
+
+📊 **File Information:**
+- File name: {filename}
+- File size: {file_size_mb:.2f} MB
+- Type: PDF document
+
+📝 **Analysis Note:**
+I can see that you've uploaded a PDF file. Currently, I can provide basic file information but cannot extract or analyze the text content within the PDF. 
+
+{f"**Your request:** {user_message}" if user_message else ""}
+
+🔧 **Suggestions:**
+- If you need the PDF content analyzed, please copy and paste the text directly into the chat
+- For images within the PDF, you could extract them as separate image files and upload those
+- I can help with general questions about PDF handling or suggest tools for PDF processing
+
+Would you like me to help with anything specific about this PDF or assist with PDF-related tasks?"""
+        
+        # Store in memory for context
+        from tools.unified_multimodal_tools import store_text_memory
+        store_text_memory.invoke({
+            "content": f"User uploaded PDF file: {filename} ({file_size_mb:.2f} MB)",
+            "category": "uploaded_file",
+            "metadata": f'{{"filename": "{filename}", "type": "pdf", "size_mb": {file_size_mb:.2f}}}'
+        })
+        
+        return analysis
+        
+    except Exception as e:
+        logger.error(f"PDF processing error: {e}")
+        return f"Error processing PDF: {str(e)}"
 
 def is_obviously_raw_data(text: str) -> bool:
     """

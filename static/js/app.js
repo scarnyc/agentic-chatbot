@@ -4,12 +4,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const messagesContainer = document.getElementById('messages');
     const messageInput = document.getElementById('message-input');
     const sendButton = document.getElementById('send-button');
+    const uploadButton = document.getElementById('upload-button');
+    const fileInput = document.getElementById('file-input');
+    const filePreview = document.getElementById('file-preview');
+    const fileName = document.getElementById('file-name');
+    const fileThumbnail = document.getElementById('file-thumbnail');
+    const removeFileButton = document.getElementById('remove-file');
     
     // State
     let conversationId = null;
     let ws = null;
     let currentAssistantMessageDiv = null; // To hold the current assistant message div for streaming
     let typingIndicator = null; // To hold the typing indicator element
+    let currentFile = null; // Current uploaded file
     
     // Auto-resize text area
     messageInput.addEventListener('input', () => {
@@ -318,11 +325,22 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     
     // Send a message
-    const sendMessage = () => {
+    const sendMessage = async () => {
         const content = messageInput.value.trim();
         
-        if (!content) return;
+        if (!content && !currentFile) return;
         
+        // If there's a file, handle file upload first
+        if (currentFile) {
+            await handleFileUpload(content);
+        } else {
+            // Regular text message
+            sendTextMessage(content);
+        }
+    };
+    
+    // Send regular text message
+    const sendTextMessage = (content) => {
         // Add user message to UI
         addMessageToUI(content, 'user');
         
@@ -352,6 +370,108 @@ document.addEventListener('DOMContentLoaded', () => {
         messageInput.focus();
     };
     
+    // Handle file upload and analysis
+    const handleFileUpload = async (userMessage) => {
+        if (!currentFile) return;
+        
+        try {
+            // Show file upload in UI
+            const fileName = currentFile.name;
+            const fileType = currentFile.type.startsWith('image/') ? 'image' : 'PDF';
+            const displayMessage = userMessage || `Please analyze this ${fileType}: ${fileName}`;
+            
+            addMessageToUI(displayMessage, 'user');
+            
+            // Reset current assistant message div for the new response
+            currentAssistantMessageDiv = null;
+            
+            // Show typing indicator
+            showTypingIndicator("Processing file");
+            
+            // Create FormData for file upload
+            const formData = new FormData();
+            formData.append('file', currentFile);
+            if (userMessage) {
+                formData.append('message', userMessage);
+            }
+            formData.append('conversation_id', conversationId);
+            
+            // Upload file and get analysis
+            const response = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Upload failed: ${response.statusText}`);
+            }
+            
+            const result = await response.json();
+            
+            // Hide typing indicator and show response
+            hideTypingIndicator();
+            addMessageToUI(result.analysis, 'assistant');
+            
+        } catch (error) {
+            console.error('File upload error:', error);
+            hideTypingIndicator();
+            addErrorMessageToUI(`Failed to process file: ${error.message}`);
+        } finally {
+            // Clear file and input
+            clearFile();
+            messageInput.value = '';
+            messageInput.style.height = 'auto';
+            messageInput.focus();
+        }
+    };
+    
+    // File handling functions
+    const handleFileSelect = (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        // Validate file type
+        const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+        if (!validTypes.includes(file.type)) {
+            alert('Please select an image file (JPEG, PNG, GIF, WebP) or PDF.');
+            return;
+        }
+        
+        // Validate file size (10MB limit)
+        const maxSize = 10 * 1024 * 1024; // 10MB
+        if (file.size > maxSize) {
+            alert('File size must be less than 10MB.');
+            return;
+        }
+        
+        currentFile = file;
+        showFilePreview(file);
+    };
+    
+    const showFilePreview = (file) => {
+        fileName.textContent = file.name;
+        
+        if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                fileThumbnail.innerHTML = `<img src="${e.target.result}" alt="Preview">`;
+            };
+            reader.readAsDataURL(file);
+        } else if (file.type === 'application/pdf') {
+            fileThumbnail.innerHTML = `<div class="pdf-icon"><i class="fas fa-file-pdf"></i></div>`;
+        }
+        
+        filePreview.style.display = 'block';
+    };
+    
+    const clearFile = () => {
+        currentFile = null;
+        fileInput.value = '';
+        filePreview.style.display = 'none';
+        fileThumbnail.innerHTML = '';
+        fileName.textContent = '';
+    };
+    
     // Event listeners
     sendButton.addEventListener('click', sendMessage);
     
@@ -361,6 +481,14 @@ document.addEventListener('DOMContentLoaded', () => {
             sendMessage();
         }
     });
+    
+    // File upload functionality
+    uploadButton.addEventListener('click', () => {
+        fileInput.click();
+    });
+    
+    fileInput.addEventListener('change', handleFileSelect);
+    removeFileButton.addEventListener('click', clearFile);
     
     // Thinking toggle removed - backend thinking still enabled for quality
     
