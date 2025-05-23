@@ -546,8 +546,8 @@ User Query
 ### v1.1
 - Log-in screen with Google oAuth for sign-in
 - MCP Servers
-- Show thinking output (when LangChain support available)
 - Vision, PDF support
+- Canvas
   
 ### v2
 - File System

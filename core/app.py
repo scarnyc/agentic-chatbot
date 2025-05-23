@@ -26,6 +26,13 @@ from tools.wiki_tools import create_wikipedia_tool
 from tools.search_tools import create_tavily_search_tool
 from tools.code_tools import get_code_tools
 from tools.datetime_tools import get_current_datetime, get_current_date_simple
+from tools.unified_multimodal_tools import (
+    store_text_memory,
+    store_image_memory, 
+    search_memories,
+    get_vector_db_info,
+    analyze_image_and_store
+)
 
 load_dotenv()
 
@@ -198,8 +205,15 @@ if tavily_api_key:
 wikipedia_tool = create_wikipedia_tool()
 code_tools = get_code_tools()
 datetime_tools = [get_current_datetime, get_current_date_simple]
+multimodal_tools = [
+    store_text_memory,
+    store_image_memory,
+    search_memories,
+    get_vector_db_info,
+    analyze_image_and_store
+]
 
-tools = [wikipedia_tool, tavily_search_tool] + code_tools + datetime_tools
+tools = [wikipedia_tool, tavily_search_tool] + code_tools + datetime_tools + multimodal_tools
 tool_node = ToolNode(tools)
 model_with_tools = llm.bind_tools(tools)
 prompt_template = ChatPromptTemplate.from_messages([

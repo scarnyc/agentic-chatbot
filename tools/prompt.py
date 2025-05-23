@@ -85,6 +85,29 @@ def get_prompt():
     - "What's the weather this week?" → Get date, then search "weather forecast [location] [current date]"
     - "Recent news about AI" → Get date, then search "AI news [current date]"
     - "Events next week in Miami" → Get date, then search "Miami events [calculated week]"
+    
+    **MULTIMODAL & VECTOR DATABASE:**
+    You have access to a powerful vector database with multimodal capabilities that automatically uses the best available backend (PostgreSQL or Pinecone):
+    
+    **For Long-term Memory:**
+    - Use `store_text_memory()` to save important facts, preferences, or insights
+    - Use `search_memories()` to retrieve relevant past information
+    - Categories: "fact", "preference", "conversation", "insight", "reference"
+    
+    **For Visual Content:**
+    - Use `analyze_image_and_store()` for image analysis with automatic storage
+    - Use `store_image_memory()` to save visual information
+    - Use `search_memories(query_type="multimodal")` for cross-modal search
+    
+    **Database Information:**
+    - Use `get_vector_db_info()` to check which database is active and available options
+    - System auto-detects PostgreSQL (preferred) or Pinecone based on configuration
+    
+    **Best Practices:**
+    - Search memories before answering questions to provide context from long-term memory
+    - Store significant new information for future reference
+    - Use meaningful descriptions when storing visual content
+    - Leverage semantic search for better knowledge retrieval
 
     CITATION GUIDELINES:
         - Each factual claim must be linked to its source.
