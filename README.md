@@ -403,6 +403,7 @@ User Query
 - Longterm Agentic Memory
 - Log-in screen with Google oAuth for sign-in
 - MCP Servers
+- Show thinking output
   
 ### v2
 - File System
@@ -410,14 +411,15 @@ User Query
 - Evals
 - RL fine-tuning with GRPO
 - Support for GPT 4.1 for writing (Tool Call)
+- Persist user Chat history (UI)
+
 
 ### v3
 - Planning: research, generation, reflection
 - RAG, Deep Research w/ Perplexity
 - Upgraded web search with Google SerpAPI
-- Persist user Chat history (UI)
+- Built-in Web Search / Code Exec / Prompt Gen (Beta) with Claude
 - Experiment with thinking budget
-- Show thinking output
 
 ### V4
 - Slack, LinkedIn, gmail, Nasa toolkit, Substack
