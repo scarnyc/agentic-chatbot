@@ -8,8 +8,8 @@ A powerful agentic workflow system built with FastAPI, LangGraph, and Anthropic 
 
 🤖 **Advanced AI Chat Interface**
 - Real-time streaming responses via WebSocket
-- **Extended Thinking**: Claude's step-by-step reasoning displayed in UI
-- **Interleaved Thinking**: Reasoning between tool calls for complex tasks
+- **Enhanced Thinking**: Claude's internal reasoning for improved response quality
+- **Interleaved Thinking**: Better tool orchestration and multi-step workflows
 - Intelligent text formatting with proper sentence spacing
 - **Markdown support**: Automatic parsing of headers, **bold**, *italic*, and clickable hyperlinks
 - Responsive design with REM-based CSS
@@ -18,6 +18,7 @@ A powerful agentic workflow system built with FastAPI, LangGraph, and Anthropic 
 - **Web Search**: Tavily API integration for current information
 - **Wikipedia Access**: Comprehensive knowledge base queries
 - **Code Execution**: Secure Python environment with mathematical libraries
+- **DateTime Tools**: Automatic current date retrieval for time-sensitive queries
 - **Large Number Handling**: Stirling's approximation for factorial calculations
 
 🛡️ **Smart Content Filtering**
@@ -53,7 +54,7 @@ A powerful agentic workflow system built with FastAPI, LangGraph, and Anthropic 
 💻 **Modern Architecture**
 - FastAPI backend with WebSocket support
 - LangGraph for workflow orchestration
-- Anthropic Claude 4 Sonnet with thinking capabilities
+- Anthropic Claude 4 Sonnet with enhanced thinking capabilities
 - Persistent conversation memory
 
 ## Quick Start
@@ -117,6 +118,7 @@ agentic-workflow/
 │   ├── code_tools.py            # Python execution with security
 │   ├── search_tools.py          # Tavily web search integration
 │   ├── wiki_tools.py            # Wikipedia API wrapper
+│   ├── datetime_tools.py        # Current date/time for context
 │   ├── math_tools.py            # Mathematical calculations
 │   ├── secure_executor.py       # Sandboxed execution environment
 │   └── prompt.py                # System prompts and guidelines
@@ -215,6 +217,14 @@ agentic-workflow/
 
 **Example:** *"Calculate the factorial of 100"*
 
+### ⏰ DateTime Context Tools
+- Automatic current date retrieval for time-sensitive queries
+- Resolves relative time references ("this week", "next week", "recently")
+- Eliminates confusion from model knowledge cutoff
+- Contextualizes search queries with accurate timeframes
+
+**Example:** *"What's the weather next week in Miami?"* automatically gets current date, calculates "next week", then searches with proper date context.
+
 ### 🧠 Long-term Memory System
 
 The agent employs a sophisticated three-tier memory system using OpenAI embeddings for semantic search and retrieval:
@@ -275,12 +285,12 @@ Each memory includes:
 - **Smart parsing**: Real-time markdown processing during streaming
 - **Custom styling**: Light blue links and purple headers optimized for dark theme
 
-### 🧠 Extended Thinking Display
-- **Toggle Control**: Show/hide thinking content with persistent preference
-- **Collapsible Display**: Expandable thinking sections with step-by-step reasoning
-- **Monospace Formatting**: Code-style formatting for clear thinking display
-- **Real-time Updates**: Thinking content streams as it's generated
-- **Interleaved Display**: Shows reasoning between tool calls for complex tasks
+### 🧠 Enhanced Thinking System
+- **Internal Reasoning**: Claude processes complex problems with enhanced thinking
+- **Better Tool Selection**: Improved reasoning about which tools to use  
+- **Quality Improvements**: All responses benefit from internal reasoning processes
+- **Interleaved Thinking**: Enhanced tool orchestration for multi-step workflows
+- **Note**: Thinking content processed internally but not displayed due to LangChain limitations
 
 ## Configuration
 
@@ -297,9 +307,9 @@ Each memory includes:
 ### Model Configuration
 
 The system uses **Claude 4 Sonnet** with:
-- **Max tokens**: 1,500
-- **Extended thinking**: 16,384 token budget for complex reasoning
-- **Interleaved thinking**: Beta feature enabling reasoning between tool calls
+- **Max tokens**: 2,000
+- **Enhanced thinking**: 1,024 token budget for internal reasoning
+- **Interleaved thinking**: Beta feature for better tool orchestration
 - **Tool binding**: All available tools
 - **Memory**: Persistent conversation history
 
@@ -367,6 +377,19 @@ python test_thinking.py
 
 # View comprehensive testing guide
 cat TESTING_GUIDE.md
+```
+
+### DateTime Tools Monitoring
+
+```bash
+# Monitor datetime tool usage
+grep "datetime" logs/api_calls.log
+
+# Watch time-sensitive query handling in real-time
+tail -f logs/api_calls.log | grep "current date"
+
+# Check for time-context searches
+grep "Retrieved.*date" logs/api_calls.log
 ```
 
 ### Security Analysis
@@ -523,8 +546,8 @@ User Query
 ### v1.1
 - Log-in screen with Google oAuth for sign-in
 - MCP Servers
-- Show thinking output
-- vision, PDF support
+- Show thinking output (when LangChain support available)
+- Vision, PDF support
   
 ### v2
 - File System

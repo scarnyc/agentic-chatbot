@@ -25,6 +25,7 @@ from tools.prompt import get_prompt
 from tools.wiki_tools import create_wikipedia_tool
 from tools.search_tools import create_tavily_search_tool
 from tools.code_tools import get_code_tools
+from tools.datetime_tools import get_current_datetime, get_current_date_simple
 
 load_dotenv()
 
@@ -196,8 +197,9 @@ if tavily_api_key:
 
 wikipedia_tool = create_wikipedia_tool()
 code_tools = get_code_tools()
+datetime_tools = [get_current_datetime, get_current_date_simple]
 
-tools = [wikipedia_tool, tavily_search_tool] + code_tools
+tools = [wikipedia_tool, tavily_search_tool] + code_tools + datetime_tools
 tool_node = ToolNode(tools)
 model_with_tools = llm.bind_tools(tools)
 prompt_template = ChatPromptTemplate.from_messages([

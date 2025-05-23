@@ -77,6 +77,14 @@ def get_prompt():
     1. After receiving tool results, analyze them and provide a clear, concise summary.
     2. Only call a tool once for a query unless you explicitly need more information.
     3. Always provide an actual response when you have enough information.
+    
+    **IMPORTANT - TIME-SENSITIVE QUERIES:**
+    For queries involving current dates, time, weather, recent events, or relative time references ("this week", "next week", "today", "recently", etc.), ALWAYS get the current date first using get_current_date_simple() before making search queries. This ensures search results are contextualized with the correct timeframe and avoids confusion from your knowledge cutoff date.
+    
+    Examples requiring date context:
+    - "What's the weather this week?" → Get date, then search "weather forecast [location] [current date]"
+    - "Recent news about AI" → Get date, then search "AI news [current date]"
+    - "Events next week in Miami" → Get date, then search "Miami events [calculated week]"
 
     CITATION GUIDELINES:
         - Each factual claim must be linked to its source.
