@@ -23,11 +23,18 @@ except ImportError:
 
 try:
     from PIL import Image
-    import clip
-    import torch
-    HAS_MULTIMODAL = True
+    # Try transformers and torch dependencies
+    try:
+        from transformers import CLIPProcessor, CLIPModel
+        import torch
+        import torchvision
+        HAS_TRANSFORMERS = True
+    except ImportError:
+        HAS_TRANSFORMERS = False
+    HAS_MULTIMODAL = HAS_TRANSFORMERS
 except ImportError:
     HAS_MULTIMODAL = False
+    HAS_TRANSFORMERS = False
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -72,8 +79,8 @@ class PostgreSQLVectorDB:
         # Embedding models
         self.text_embeddings = None
         self.clip_model = None
-        self.clip_preprocess = None
-        self.device = "cuda" if HAS_MULTIMODAL and torch.cuda.is_available() else "cpu"
+        self.clip_processor = None
+        self.device = "cuda" if HAS_TRANSFORMERS and torch.cuda.is_available() else "cpu"
         
         self._initialize_database()
         self._initialize_embedding_models()
@@ -160,16 +167,26 @@ class PostgreSQLVectorDB:
                 logger.info("OpenAI text embeddings initialized")
             
             # Initialize CLIP for multimodal embeddings
-            if HAS_MULTIMODAL:
+            if HAS_TRANSFORMERS:
                 try:
-                    self.clip_model, self.clip_preprocess = clip.load("ViT-B/32", device=self.device)
+                    # Try fast processor first, fall back to slow if needed
+                    try:
+                        self.clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32", use_fast=True)
+                    except Exception:
+                        logger.info("Fast CLIP processor not available, using slow processor")
+                        self.clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32", use_fast=False)
+                    
+                    self.clip_model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
+                    self.clip_model.to(self.device)
                     logger.info(f"CLIP model loaded on device: {self.device}")
                 except Exception as e:
                     logger.warning(f"Failed to load CLIP model: {e}")
                     self.clip_model = None
+                    self.clip_processor = None
             else:
-                logger.warning("Multimodal dependencies not available, CLIP disabled")
+                logger.info("Transformers not available, using text-only embeddings for images")
                 self.clip_model = None
+                self.clip_processor = None
             
             return True
             
@@ -206,18 +223,19 @@ class PostgreSQLVectorDB:
     def _embed_image(self, image_data: str) -> Optional[List[float]]:
         """Generate image embedding using CLIP."""
         try:
-            if not self.clip_model or not HAS_MULTIMODAL:
+            if not self.clip_model or not self.clip_processor or not HAS_TRANSFORMERS:
                 return None
                 
             # Decode base64 image
             image_bytes = base64.b64decode(image_data)
             image = Image.open(io.BytesIO(image_bytes))
             
-            # Preprocess and embed
-            image_input = self.clip_preprocess(image).unsqueeze(0).to(self.device)
+            # Process and embed
+            inputs = self.clip_processor(images=image, return_tensors="pt")
+            inputs = {k: v.to(self.device) for k, v in inputs.items()}
             
             with torch.no_grad():
-                image_features = self.clip_model.encode_image(image_input)
+                image_features = self.clip_model.get_image_features(**inputs)
                 image_features = image_features / image_features.norm(dim=-1, keepdim=True)
             
             return image_features.cpu().numpy().flatten().tolist()
@@ -229,14 +247,15 @@ class PostgreSQLVectorDB:
     def _embed_multimodal(self, text: str, image_data: Optional[str] = None) -> Optional[List[float]]:
         """Generate combined text+image embedding."""
         try:
-            if not self.clip_model or not HAS_MULTIMODAL:
+            if not self.clip_model or not self.clip_processor or not HAS_TRANSFORMERS:
                 return self._embed_text(text)
             
             # Encode text with CLIP
-            text_tokens = clip.tokenize([text]).to(self.device)
+            inputs = self.clip_processor(text=[text], return_tensors="pt", padding=True)
+            inputs = {k: v.to(self.device) for k, v in inputs.items()}
             
             with torch.no_grad():
-                text_features = self.clip_model.encode_text(text_tokens)
+                text_features = self.clip_model.get_text_features(**inputs)
                 text_features = text_features / text_features.norm(dim=-1, keepdim=True)
             
             # If image provided, combine embeddings
