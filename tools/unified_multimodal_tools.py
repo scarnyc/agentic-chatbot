@@ -251,10 +251,11 @@ def get_vector_db_info() -> str:
         available_dbs = vector_db_factory.get_available_databases()
         
         # Current database info
-        if default_vector_db:
-            current_stats = default_vector_db.get_stats()
-            current_db_name = type(default_vector_db).__name__
-            health_status = "healthy" if default_vector_db.health_check() else "unhealthy"
+        vector_db = get_current_vector_db()
+        if vector_db:
+            current_stats = vector_db.get_stats()
+            current_db_name = type(vector_db).__name__
+            health_status = "healthy" if vector_db.health_check() else "unhealthy"
         else:
             current_stats = {"status": "not_initialized"}
             current_db_name = "None"
@@ -269,7 +270,7 @@ def get_vector_db_info() -> str:
 📈 **Current Database Stats**:
 """
         
-        if default_vector_db and current_stats.get("status") == "connected":
+        if vector_db and current_stats.get("status") == "connected":
             response += f"""- Total Vectors: {current_stats.get('total_vectors', 0):,}
 - Namespace: {current_stats.get('namespace', 'default')}
 - Database Type: {current_stats.get('database_type', current_db_name)}
