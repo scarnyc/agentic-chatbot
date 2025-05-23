@@ -343,57 +343,6 @@ The UI uses CSS custom properties for easy theming:
 - **Scientific notation**: Prevents UI overflow
 - **Precision control**: Balanced accuracy and performance
 
-## Troubleshooting
-
-### Common Issues
-
-**Server won't start:**
-```bash
-# Check port availability
-lsof -i :8000
-
-# Kill existing processes
-lsof -ti:8000 | xargs kill -9
-```
-
-**API key errors:**
-- Verify `.env` file exists and contains valid keys
-- Check API key permissions and quotas
-- Ensure no extra spaces in environment variables
-
-**WebSocket connection issues:**
-- Check browser console for errors
-- Verify conversation ID exists
-- Clear browser cache and cookies
-
-**Tool execution failures:**
-- Check Python environment and dependencies
-- Verify network connectivity for external APIs
-- Review server logs for detailed error messages
-
-### Debugging
-
-Enable debug logging:
-```python
-# In main.py
-logging.basicConfig(level=logging.DEBUG)
-```
-
-Monitor server logs:
-```bash
-# View specific log types
-tail -f logs/app.log          # General application logs
-tail -f logs/error.log        # Error-level logs only
-tail -f logs/websocket.log    # WebSocket connection logs
-tail -f logs/api_calls.log    # Tool usage logs
-
-# Monitor cache performance
-python core/cache_monitor.py --monitor
-
-# Monitor error recovery
-python core/error_recovery_monitor.py --monitor
-```
-
 ## Contributing
 
 1. Fork the repository
@@ -451,32 +400,32 @@ User Query
 ✅ Error Recovery: Implement automatic retries for temporary API failures
   
 ### v1
-- Generative UI
-- User Feedback Loop: Add a thumbs up/down mechanism to collect feedback on answers
-- Support for GPT 4.1 for writing
 - Longterm Agentic Memory
-  
-### v2
-- Human in the loop (stop and ask for input)
 - Log-in screen with Google oAuth for sign-in
 - MCP Servers
+  
+### v2
 - File System
-- Evals, monitoring & logging
+- Human in the loop (stop and ask for input)
+- Evals
 - RL fine-tuning with GRPO
+- Support for GPT 4.1 for writing (Tool Call)
 
 ### v3
 - Planning: research, generation, reflection
 - RAG, Deep Research w/ Perplexity
 - Upgraded web search with Google SerpAPI
 - Persist user Chat history (UI)
-- Experiment with thinking budget / prompt caching
+- Experiment with thinking budget
 - Show thinking output
 
 ### V4
 - Slack, LinkedIn, gmail, Nasa toolkit, Substack
-- User-input OpenAI / Gemini API Key
+- User-input OpenAI / Anthropic API Key
 - Security with Cloudflare
 - App optimized for security, speed & efficiency
+- Generative UI
+- User Feedback Loop: Add a thumbs up/down mechanism to collect feedback on answers
 
 ---
 
