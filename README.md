@@ -409,7 +409,7 @@ User Query
 - File System
 - Human in the loop (stop and ask for input)
 - Evals
-- RL fine-tuning with GRPO
+- RL fine-tuning with GRPO w/ thumbs up and thumbs down user feedback
 - Support for GPT 4.1 for writing (Tool Call)
 - Persist user Chat history (UI)
 
