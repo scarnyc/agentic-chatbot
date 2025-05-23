@@ -210,21 +210,61 @@ async def process_image_file(file_content: bytes, filename: str, user_message: O
         # Convert image to base64
         image_base64 = base64.b64encode(file_content).decode('utf-8')
         
-        # Use the existing unified multimodal tools
-        from tools.unified_multimodal_tools import analyze_image_and_store
-        
-        # Create analysis request
-        analysis_request = user_message or "Analyze this image and describe what you see in detail"
-        
-        # Analyze the image
-        result = analyze_image_and_store.invoke({
-            "image_base64": image_base64,
-            "analysis_request": analysis_request,
-            "store_in_memory": True,
-            "category": "uploaded_image"
-        })
-        
-        return result
+        if HAS_PIL:
+            # Use the existing unified multimodal tools
+            from tools.unified_multimodal_tools import analyze_image_and_store
+            
+            # Create analysis request
+            analysis_request = user_message or "Analyze this image and describe what you see in detail"
+            
+            # Analyze the image
+            result = analyze_image_and_store.invoke({
+                "image_base64": image_base64,
+                "analysis_request": analysis_request,
+                "store_in_memory": True,
+                "category": "uploaded_image"
+            })
+            
+            return result
+        else:
+            # Fallback when PIL is not available
+            file_size_mb = len(file_content) / (1024 * 1024)
+            
+            fallback_analysis = f"""🖼️ **Image File Received: {filename}**
+
+📊 **File Information:**
+- File name: {filename}
+- File size: {file_size_mb:.2f} MB
+- Type: Image file
+
+⚠️ **Limited Analysis Mode:**
+I can see that you've uploaded an image file, but full image analysis is currently limited due to missing dependencies (PIL/Pillow).
+
+{f"**Your request:** {user_message}" if user_message else ""}
+
+🔧 **To enable full image analysis:**
+1. Install Pillow: `pip install Pillow`
+2. Restart the application
+3. Re-upload your image for detailed visual analysis
+
+📝 **What I could do with full capabilities:**
+- Detailed description of image content
+- Object and scene recognition
+- Text extraction (if present)
+- Color and composition analysis
+- Technical image properties
+
+Would you like me to help with anything else, or would you prefer to set up the image analysis dependencies?"""
+            
+            # Store basic info in memory
+            from tools.unified_multimodal_tools import store_text_memory
+            store_text_memory.invoke({
+                "content": f"User uploaded image file: {filename} ({file_size_mb:.2f} MB) - Limited analysis mode",
+                "category": "uploaded_file",
+                "metadata": f'{{"filename": "{filename}", "type": "image", "size_mb": {file_size_mb:.2f}, "analysis_mode": "limited"}}'
+            })
+            
+            return fallback_analysis
         
     except Exception as e:
         logger.error(f"Image processing error: {e}")
