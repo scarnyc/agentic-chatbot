@@ -418,7 +418,8 @@ User Query
 - Planning: research, generation, reflection
 - RAG, Deep Research w/ Perplexity
 - Upgraded web search with Google SerpAPI
-- Built-in Web Search / Code Exec / Prompt Gen (Beta) with Claude
+- Enable Claude's Built-in Web Search w/ Prompt Caching 
+- Claude's Code Exec / Prompt Gen / Computer Use (Beta)
 - Experiment with thinking budget
 
 ### V4
