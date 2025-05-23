@@ -17,9 +17,17 @@ try:
 except ImportError:
     HAS_PIL = False
 
-from core.vector_db_factory import default_vector_db, vector_db_factory
+from core.vector_db_factory import vector_db_factory
 
 logger = logging.getLogger(__name__)
+
+def get_current_vector_db():
+    """Get the current vector database instance."""
+    try:
+        return vector_db_factory.create_vector_db()
+    except Exception as e:
+        logger.error(f"Failed to get vector database: {e}")
+        return None
 
 @tool
 def store_text_memory(
@@ -46,13 +54,14 @@ def store_text_memory(
     - Build long-term memory for better context
     """
     try:
-        if not default_vector_db:
+        vector_db = get_current_vector_db()
+        if not vector_db:
             return "Vector database not available. Check configuration (DATABASE_URL or PINECONE_API_KEY)."
         
         import json
         metadata_dict = json.loads(metadata) if metadata != "{}" else {}
         
-        success = default_vector_db.store_text_memory(
+        success = vector_db.store_text_memory(
             content=content,
             category=category,
             metadata=metadata_dict
@@ -60,7 +69,7 @@ def store_text_memory(
         
         if success:
             api_logger = logging.getLogger('api_calls')
-            db_type = type(default_vector_db).__name__
+            db_type = type(vector_db).__name__
             api_logger.info(f"Stored text in {db_type}: category={category}, content_length={len(content)}")
             return f"Successfully stored text content in vector database (category: {category})"
         else:
@@ -96,7 +105,8 @@ def store_image_memory(
     - Enable image-based retrieval and search
     """
     try:
-        if not default_vector_db:
+        vector_db = get_current_vector_db()
+        if not vector_db:
             return "Vector database not available. Check configuration (DATABASE_URL or PINECONE_API_KEY)."
         
         import json
@@ -116,7 +126,7 @@ def store_image_memory(
             except Exception as e:
                 return f"Invalid base64 image data: {str(e)}"
         
-        success = default_vector_db.store_image_memory(
+        success = vector_db.store_image_memory(
             image_data=image_base64,
             description=description,
             metadata=metadata_dict
@@ -124,7 +134,7 @@ def store_image_memory(
         
         if success:
             api_logger = logging.getLogger('api_calls')
-            db_type = type(default_vector_db).__name__
+            db_type = type(vector_db).__name__
             api_logger.info(f"Stored image in {db_type}: description_length={len(description)}")
             return f"Successfully stored image in vector database with description: {description[:100]}..."
         else:
@@ -162,7 +172,8 @@ def search_memories(
     - Provide context from long-term memory
     """
     try:
-        if not default_vector_db:
+        vector_db = get_current_vector_db()
+        if not vector_db:
             return "Vector database not available. Check configuration (DATABASE_URL or PINECONE_API_KEY)."
         
         # Validate inputs
@@ -175,7 +186,7 @@ def search_memories(
         if category_filter:
             filter_metadata["category"] = category_filter
         
-        results = default_vector_db.search_memories(
+        results = vector_db.search_memories(
             query=query,
             query_type=query_type,
             limit=limit,

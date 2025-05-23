@@ -9,6 +9,10 @@ import os
 import logging
 from typing import Optional, Union
 from enum import Enum
+from dotenv import load_dotenv
+
+# Ensure environment variables are loaded
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +61,9 @@ class VectorDBFactory:
     def _auto_detect_db_type() -> VectorDBType:
         """Auto-detect which vector database to use based on environment and availability."""
         
+        # Force reload environment variables
+        load_dotenv(override=True)
+        
         # Check for PostgreSQL configuration AND dependencies
         database_url = os.getenv("DATABASE_URL")
         postgres_configured = database_url and "postgresql" in database_url.lower()
@@ -69,6 +76,12 @@ class VectorDBFactory:
         pinecone_api_key = os.getenv("PINECONE_API_KEY")
         pinecone_available = bool(pinecone_api_key)
         
+        # Debug logging
+        logger.info(f"DATABASE_URL found: {bool(database_url)}")
+        logger.info(f"PostgreSQL configured: {postgres_configured}")
+        logger.info(f"PostgreSQL deps available: {postgres_deps_available}")
+        logger.info(f"Pinecone available: {pinecone_available}")
+        
         # Preference order: PostgreSQL first (cost-effective), then Pinecone, then Mock
         if postgres_available:
             logger.info("Auto-detected PostgreSQL vector database")
@@ -78,7 +91,7 @@ class VectorDBFactory:
             return VectorDBType.PINECONE
         else:
             # Fall back to mock database
-            logger.info("No vector database available, using mock database")
+            logger.info(f"No vector database available, using mock database (DB_URL: {database_url}, deps: {postgres_deps_available})")
             return VectorDBType.MOCK
     
     @staticmethod
@@ -173,6 +186,18 @@ class VectorDBFactory:
 
 # Global factory instance
 vector_db_factory = VectorDBFactory()
+
+# Function to reinitialize the default vector database
+def reinitialize_default_vector_db():
+    """Reinitialize the default vector database with current environment."""
+    global default_vector_db
+    try:
+        default_vector_db = vector_db_factory.create_vector_db()
+        logger.info(f"Reinitialized default vector database: {type(default_vector_db).__name__}")
+        return default_vector_db
+    except Exception as e:
+        logger.error(f"Failed to reinitialize default vector database: {e}")
+        return None
 
 # Create the default vector database instance
 try:

@@ -16,6 +16,8 @@ import asyncio
 import logging
 import base64
 import io
+import os
+from anthropic import Anthropic
 
 # Handle PIL import gracefully
 try:
@@ -27,6 +29,10 @@ except ImportError:
 from core.app import langgraph_app, process_conversation_for_memory, get_memory_stats # Assuming core.app contains your LangGraph setup
 from core.cache import get_cache_stats, clear_cache
 from core.error_recovery import get_error_recovery_stats
+
+# Reinitialize vector database after environment is loaded
+from core.vector_db_factory import reinitialize_default_vector_db
+reinitialize_default_vector_db()
 
 # Initialize logging
 from core.logging_config import setup_logging, get_logger
@@ -205,111 +211,220 @@ async def upload_file(
         raise HTTPException(status_code=500, detail=f"Failed to process file: {str(e)}")
 
 async def process_image_file(file_content: bytes, filename: str, user_message: Optional[str]) -> str:
-    """Process uploaded image file."""
+    """Process uploaded image file using direct Anthropic Vision API."""
     try:
         # Convert image to base64
         image_base64 = base64.b64encode(file_content).decode('utf-8')
         
-        if HAS_PIL:
-            # Use the existing unified multimodal tools
-            from tools.unified_multimodal_tools import analyze_image_and_store
-            
-            # Create analysis request
-            analysis_request = user_message or "Analyze this image and describe what you see in detail"
-            
-            # Analyze the image
-            result = analyze_image_and_store.invoke({
-                "image_base64": image_base64,
-                "analysis_request": analysis_request,
-                "store_in_memory": True,
-                "category": "uploaded_image"
-            })
-            
-            return result
-        else:
-            # Fallback when PIL is not available
-            file_size_mb = len(file_content) / (1024 * 1024)
-            
-            fallback_analysis = f"""🖼️ **Image File Received: {filename}**
+        # Get image format for the API
+        file_extension = filename.lower().split('.')[-1] if '.' in filename else 'unknown'
+        media_type_map = {
+            'png': 'image/png',
+            'jpg': 'image/jpeg', 
+            'jpeg': 'image/jpeg',
+            'gif': 'image/gif',
+            'webp': 'image/webp'
+        }
+        media_type = media_type_map.get(file_extension, 'image/png')
+        
+        # Create analysis request
+        analysis_request = user_message or "Analyze this image and describe what you see in detail"
+        
+        # Use direct Anthropic Vision API
+        client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",  # Same model as the rest of the app
+            max_tokens=1000,
+            messages=[{
+                "role": "user", 
+                "content": [
+                    {"type": "text", "text": analysis_request},
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": media_type,
+                            "data": image_base64
+                        }
+                    }
+                ]
+            }]
+        )
+        
+        # Extract the analysis from the response
+        analysis_text = response.content[0].text
+        
+        # Get file info for storage
+        file_size_mb = len(file_content) / (1024 * 1024)
+        
+        # Format the response nicely
+        formatted_response = f"""🖼️ **Image Analysis: {filename}**
 
 📊 **File Information:**
 - File name: {filename}
 - File size: {file_size_mb:.2f} MB
-- Type: Image file
+- Format: {file_extension.upper()}
 
-⚠️ **Limited Analysis Mode:**
-I can see that you've uploaded an image file, but full image analysis is currently limited due to missing dependencies (PIL/Pillow).
+🔍 **Claude's Analysis:**
+{analysis_text}
 
-{f"**Your request:** {user_message}" if user_message else ""}
+✅ **Analysis complete** - Image processed using Claude 4 Sonnet vision capabilities."""
 
-🔧 **To enable full image analysis:**
-1. Install Pillow: `pip install Pillow`
-2. Restart the application
-3. Re-upload your image for detailed visual analysis
-
-📝 **What I could do with full capabilities:**
-- Detailed description of image content
-- Object and scene recognition
-- Text extraction (if present)
-- Color and composition analysis
-- Technical image properties
-
-Would you like me to help with anything else, or would you prefer to set up the image analysis dependencies?"""
-            
-            # Store basic info in memory
-            from tools.unified_multimodal_tools import store_text_memory
-            store_text_memory.invoke({
-                "content": f"User uploaded image file: {filename} ({file_size_mb:.2f} MB) - Limited analysis mode",
-                "category": "uploaded_file",
-                "metadata": f'{{"filename": "{filename}", "type": "image", "size_mb": {file_size_mb:.2f}, "analysis_mode": "limited"}}'
-            })
-            
-            return fallback_analysis
+        # Store in vector database for memory
+        from tools.unified_multimodal_tools import store_text_memory, store_image_memory
+        
+        # Store the image and analysis
+        store_image_memory.invoke({
+            "image_base64": image_base64,
+            "description": f"Image analysis: {analysis_text[:200]}...",
+            "metadata": f'{{"filename": "{filename}", "analysis_request": "{analysis_request}", "size_mb": {file_size_mb:.2f}}}'
+        })
+        
+        # Also store the full analysis as text
+        store_text_memory.invoke({
+            "content": f"Image analysis for {filename}: {analysis_text}",
+            "category": "image_analysis",
+            "metadata": f'{{"filename": "{filename}", "type": "vision_analysis"}}'
+        })
+        
+        logger.info(f"Image analyzed successfully with Claude Vision: {filename}")
+        return formatted_response
         
     except Exception as e:
         logger.error(f"Image processing error: {e}")
-        return f"Error processing image: {str(e)}"
+        
+        # Fallback error message
+        file_size_mb = len(file_content) / (1024 * 1024) if file_content else 0
+        return f"""🖼️ **Image Upload: {filename}**
+
+❌ **Analysis Error:** {str(e)}
+
+📊 **File Information:**
+- File name: {filename}
+- File size: {file_size_mb:.2f} MB
+
+💡 **The image was uploaded successfully, but vision analysis failed. This could be due to:**
+- API key issues
+- Network connectivity
+- Unsupported image format
+- File corruption
+
+Please try uploading again or check the server logs for more details."""
 
 async def process_pdf_file(file_content: bytes, filename: str, user_message: Optional[str]) -> str:
-    """Process uploaded PDF file."""
+    """Process uploaded PDF file using Anthropic's native PDF support."""
     try:
-        # For now, provide basic PDF handling since we don't have PDF text extraction
-        # In the future, this could be enhanced with PDF parsing libraries
+        # Convert PDF to base64
+        pdf_base64 = base64.b64encode(file_content).decode('utf-8')
         
+        # Get file size for info
         file_size_mb = len(file_content) / (1024 * 1024)
         
-        analysis = f"""📄 **PDF File Analysis: {filename}**
+        # Validate file size (Anthropic has limits)
+        max_size_mb = 32  # Anthropic's PDF limit is 32MB
+        if file_size_mb > max_size_mb:
+            return f"""📄 **PDF File: {filename}**
+
+❌ **File Too Large:** {file_size_mb:.2f} MB
+
+The PDF file is too large for direct analysis. Anthropic supports PDFs up to {max_size_mb}MB.
+
+🔧 **Suggestions:**
+- Compress the PDF to reduce file size
+- Split large PDFs into smaller sections
+- Extract key pages and upload them separately
+- Copy and paste specific text sections you want analyzed
+
+Would you like help with PDF compression or other alternatives?"""
+        
+        # Create analysis request
+        analysis_request = user_message or "Analyze this PDF document. Summarize the content, extract key information, and identify main topics."
+        
+        # Use direct Anthropic API with PDF support
+        client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",  # Same model as the rest of the app
+            max_tokens=2000,  # More tokens for PDF analysis
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": analysis_request},
+                    {
+                        "type": "document",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "application/pdf",
+                            "data": pdf_base64
+                        }
+                    }
+                ]
+            }]
+        )
+        
+        # Extract the analysis from the response
+        analysis_text = response.content[0].text
+        
+        # Format the response nicely
+        formatted_response = f"""📄 **PDF Analysis: {filename}**
 
 📊 **File Information:**
 - File name: {filename}
 - File size: {file_size_mb:.2f} MB
 - Type: PDF document
 
-📝 **Analysis Note:**
-I can see that you've uploaded a PDF file. Currently, I can provide basic file information but cannot extract or analyze the text content within the PDF. 
+🔍 **Claude's Analysis:**
+{analysis_text}
 
-{f"**Your request:** {user_message}" if user_message else ""}
+✅ **Analysis complete** - PDF processed using Claude 4 Sonnet's native PDF capabilities."""
 
-🔧 **Suggestions:**
-- If you need the PDF content analyzed, please copy and paste the text directly into the chat
-- For images within the PDF, you could extract them as separate image files and upload those
-- I can help with general questions about PDF handling or suggest tools for PDF processing
-
-Would you like me to help with anything specific about this PDF or assist with PDF-related tasks?"""
-        
-        # Store in memory for context
+        # Store in vector database for memory
         from tools.unified_multimodal_tools import store_text_memory
+        
+        # Store the PDF analysis
         store_text_memory.invoke({
-            "content": f"User uploaded PDF file: {filename} ({file_size_mb:.2f} MB)",
+            "content": f"PDF analysis for {filename}: {analysis_text}",
+            "category": "pdf_analysis",
+            "metadata": f'{{"filename": "{filename}", "type": "pdf_analysis", "size_mb": {file_size_mb:.2f}, "analysis_request": "{analysis_request}"}}'
+        })
+        
+        # Also store a summary for quick reference
+        summary = analysis_text[:300] + "..." if len(analysis_text) > 300 else analysis_text
+        store_text_memory.invoke({
+            "content": f"PDF document {filename} contains: {summary}",
             "category": "uploaded_file",
             "metadata": f'{{"filename": "{filename}", "type": "pdf", "size_mb": {file_size_mb:.2f}}}'
         })
         
-        return analysis
+        logger.info(f"PDF analyzed successfully with Claude: {filename} ({file_size_mb:.2f} MB)")
+        return formatted_response
         
     except Exception as e:
         logger.error(f"PDF processing error: {e}")
-        return f"Error processing PDF: {str(e)}"
+        
+        # Fallback error message
+        file_size_mb = len(file_content) / (1024 * 1024) if file_content else 0
+        return f"""📄 **PDF Upload: {filename}**
+
+❌ **Analysis Error:** {str(e)}
+
+📊 **File Information:**
+- File name: {filename}
+- File size: {file_size_mb:.2f} MB
+
+💡 **The PDF was uploaded successfully, but analysis failed. This could be due to:**
+- PDF contains only scanned images (try OCR first)
+- Corrupted or password-protected PDF
+- Network connectivity issues
+- API limitations
+
+🔧 **Alternative approaches:**
+- Try converting PDF to text and pasting directly
+- Upload individual pages as images
+- Use a PDF text extraction tool first
+
+Please try again or contact support if the issue persists."""
 
 def is_obviously_raw_data(text: str) -> bool:
     """
