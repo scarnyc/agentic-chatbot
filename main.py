@@ -257,6 +257,16 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
                                                 "type": "tool_end"
                                             }))
                                     
+                                    # Check for thinking content in the event
+                                    if isinstance(value, dict) and "thinking" in value:
+                                        thinking_content = value["thinking"]
+                                        # Send thinking content to UI
+                                        await websocket.send_text(json.dumps({
+                                            "type": "thinking",
+                                            "content": thinking_content
+                                        }))
+                                        websocket_logger.info(f"Sent thinking content: {len(thinking_content)} characters")
+                                    
                                     if isinstance(value, dict) and "messages" in value:
                                         for msg_obj in value["messages"]:
                                             # Check if this message has tool calls to detect specific tools
@@ -273,6 +283,17 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
                                             if (hasattr(msg_obj, 'content') and 
                                                 (str(type(msg_obj)).find('AIMessage') != -1 or 
                                                  (hasattr(msg_obj, 'type') and str(msg_obj.type) == 'ai'))):
+                                                
+                                                # Check for thinking content in message additional_kwargs
+                                                if (hasattr(msg_obj, 'additional_kwargs') and 
+                                                    'thinking' in msg_obj.additional_kwargs):
+                                                    thinking_content = msg_obj.additional_kwargs['thinking']
+                                                    await websocket.send_text(json.dumps({
+                                                        "type": "thinking",
+                                                        "content": thinking_content
+                                                    }))
+                                                    websocket_logger.info(f"Sent thinking from message: {len(thinking_content)} characters")
+                                                
                                                 chunk_candidate = msg_obj.content
                                                 
                                                 # Process the chunk candidate

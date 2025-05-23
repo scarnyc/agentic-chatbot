@@ -1,6 +1,7 @@
 # tools/wiki_tools.py
 
 import logging
+from urllib.parse import quote
 from langchain_core.tools import Tool
 from langchain_community.utilities import WikipediaAPIWrapper
 from core.cache import cache
@@ -19,6 +20,15 @@ def create_wikipedia_tool():
 
         # Wrap the Wikipedia run to provide error handling, token management, and caching
         def wiki_query_with_handling(query):
+            # Input validation
+            if not query or not isinstance(query, str):
+                return "Invalid query: Please provide a valid search term."
+            
+            # Sanitize query - remove potentially problematic characters
+            query = query.strip()
+            if len(query) > 300:  # Align with WIKIPEDIA_MAX_QUERY_LENGTH
+                query = query[:300]
+            
             # Check cache first
             cache_key_params = {
                 'top_k_results': 3,
@@ -38,8 +48,9 @@ def create_wikipedia_tool():
                 if len(result) > 4000:
                     result = result[:4000] + "... [content truncated for brevity]"
 
-                # Add Wikipedia source URL
-                wiki_url = f"https://en.wikipedia.org/wiki/{query.replace(' ', '_')}"
+                # Add Wikipedia source URL with proper encoding
+                wiki_title = quote(query.replace(' ', '_'), safe='')
+                wiki_url = f"https://en.wikipedia.org/wiki/{wiki_title}"
                 result += f"\n\nSources:\n{wiki_url}"
 
                 # Cache the results (24 hours TTL for Wikipedia - more stable content)

@@ -161,8 +161,10 @@ def create_anthropic_model_with_error_handling():
             max_tokens=1500,
             thinking={
                 "type": "enabled",
-                "budget_tokens": 1024
+                "budget_tokens": 16384  # Increased for extended thinking
             },
+            # Enable interleaved thinking with tool use
+            beta="interleaved-thinking-2025-05-14",
             # Enable keep-alive as recommended by Anthropic
             timeout=300.0,  # 5 minute timeout
         )
@@ -259,6 +261,12 @@ def call_model(state: MessagesState) -> dict:
             request_id = response.response_metadata['request-id']
             logger.info(f"Anthropic request ID: {request_id}")
         
+        # Extract thinking content if available
+        thinking_content = None
+        if hasattr(response, 'additional_kwargs') and 'thinking' in response.additional_kwargs:
+            thinking_content = response.additional_kwargs['thinking']
+            logger.info(f"Extracted thinking content: {len(thinking_content)} characters")
+        
         # Handle stop reasons
         stop_handler = AnthropicStopReasonHandler()
         stop_info = stop_handler.handle_stop_reason(response, messages)
@@ -290,9 +298,15 @@ def call_model(state: MessagesState) -> dict:
                 additional_kwargs=response.additional_kwargs if hasattr(response, 'additional_kwargs') else {},
                 response_metadata=response.response_metadata if hasattr(response, 'response_metadata') else {}
             )
-            return {"messages": [modified_response]}
+            result = {"messages": [modified_response]}
+        else:
+            result = {"messages": [response]}
         
-        return {"messages": [response]}
+        # Add thinking content to the result if available
+        if thinking_content:
+            result["thinking"] = thinking_content
+        
+        return result
     
     # Use synchronous error recovery for the model call
     try:

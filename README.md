@@ -8,6 +8,8 @@ A powerful agentic workflow system built with FastAPI, LangGraph, and Anthropic 
 
 🤖 **Advanced AI Chat Interface**
 - Real-time streaming responses via WebSocket
+- **Extended Thinking**: Claude's step-by-step reasoning displayed in UI
+- **Interleaved Thinking**: Reasoning between tool calls for complex tasks
 - Intelligent text formatting with proper sentence spacing
 - **Markdown support**: Automatic parsing of headers, **bold**, *italic*, and clickable hyperlinks
 - Responsive design with REM-based CSS
@@ -201,6 +203,7 @@ agentic-workflow/
 - Biographical data
 - Scientific concepts
 - General knowledge
+- **Security**: URL encoding, input validation, query sanitization
 
 **Example:** *"Tell me about the Roman Empire"*
 
@@ -272,6 +275,13 @@ Each memory includes:
 - **Smart parsing**: Real-time markdown processing during streaming
 - **Custom styling**: Light blue links and purple headers optimized for dark theme
 
+### 🧠 Extended Thinking Display
+- **Toggle Control**: Show/hide thinking content with persistent preference
+- **Collapsible Display**: Expandable thinking sections with step-by-step reasoning
+- **Monospace Formatting**: Code-style formatting for clear thinking display
+- **Real-time Updates**: Thinking content streams as it's generated
+- **Interleaved Display**: Shows reasoning between tool calls for complex tasks
+
 ## Configuration
 
 ### Environment Variables
@@ -288,7 +298,8 @@ Each memory includes:
 
 The system uses **Claude 4 Sonnet** with:
 - **Max tokens**: 1,500
-- **Thinking enabled**: 1,024 token budget
+- **Extended thinking**: 16,384 token budget for complex reasoning
+- **Interleaved thinking**: Beta feature enabling reasoning between tool calls
 - **Tool binding**: All available tools
 - **Memory**: Persistent conversation history
 
@@ -348,8 +359,24 @@ ls -la memory/
 # Run automated API error tests
 python test_api_errors.py
 
+# Test memory system
+python test_memory.py
+
+# Test extended thinking functionality
+python test_thinking.py
+
 # View comprehensive testing guide
 cat TESTING_GUIDE.md
+```
+
+### Security Analysis
+
+```bash
+# View Wikipedia tool security analysis
+cat WIKIPEDIA_SECURITY_ANALYSIS.md
+
+# Check tool security implementations
+grep -r "quote\|sanitize\|validate" tools/
 ```
 
 ## Development
@@ -407,6 +434,12 @@ The UI uses CSS custom properties for easy theming:
 - WebSocket authentication
 - API key protection
 - Rate limiting (Anthropic-enforced)
+
+### Tool Security
+- **Wikipedia Tool**: URL encoding, input validation, query length limiting
+- **Search Tool**: API key protection, result filtering
+- **Code Tool**: Sandboxed execution, no file system access
+- **Security Auditing**: Regular vulnerability assessments of LangChain community tools
 
 ## Performance Optimizations
 

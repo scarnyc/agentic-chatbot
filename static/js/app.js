@@ -119,6 +119,67 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     
+    // Thinking content display functions
+    let currentThinkingDiv = null;
+    let thinkingToggleState = localStorage.getItem('thinkingToggle') === 'true';
+    
+    const displayThinkingContent = (thinkingContent) => {
+        // Only display if thinking toggle is enabled
+        if (!thinkingToggleState) {
+            return;
+        }
+        
+        // Hide typing indicator
+        hideTypingIndicator();
+        
+        // Create or update thinking display
+        if (!currentThinkingDiv) {
+            currentThinkingDiv = document.createElement('div');
+            currentThinkingDiv.className = 'message assistant thinking-display';
+            
+            const messageContent = document.createElement('div');
+            messageContent.className = 'message-content thinking-content';
+            
+            // Add thinking header with toggle
+            const thinkingHeader = document.createElement('div');
+            thinkingHeader.className = 'thinking-header';
+            thinkingHeader.innerHTML = `
+                <span class="thinking-icon">🤔</span>
+                <span class="thinking-title">Claude's Thinking</span>
+                <button class="thinking-toggle" onclick="toggleThinkingExpanded(this)">▼</button>
+            `;
+            
+            const thinkingText = document.createElement('div');
+            thinkingText.className = 'thinking-text';
+            thinkingText.textContent = thinkingContent;
+            
+            messageContent.appendChild(thinkingHeader);
+            messageContent.appendChild(thinkingText);
+            currentThinkingDiv.appendChild(messageContent);
+            messagesContainer.appendChild(currentThinkingDiv);
+        } else {
+            // Update existing thinking content
+            const thinkingText = currentThinkingDiv.querySelector('.thinking-text');
+            thinkingText.textContent = thinkingContent;
+        }
+        
+        scrollToBottom();
+    };
+    
+    // Global function for thinking toggle (called from button)
+    window.toggleThinkingExpanded = (button) => {
+        const thinkingText = button.closest('.message-content').querySelector('.thinking-text');
+        const isExpanded = thinkingText.style.display !== 'none';
+        
+        if (isExpanded) {
+            thinkingText.style.display = 'none';
+            button.textContent = '▶';
+        } else {
+            thinkingText.style.display = 'block';
+            button.textContent = '▼';
+        }
+    };
+    
     // Initialize conversation
     const initConversation = async () => {
         try {
@@ -178,8 +239,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.warn("Skipping message_chunk due to invalid content:", data.content);
                 }
             } else if (data.type === 'thinking') {
-                // Show thinking indicator
-                showTypingIndicator("Thinking");
+                // Handle thinking content
+                if (data.content && data.content.trim()) {
+                    displayThinkingContent(data.content);
+                } else {
+                    // Show thinking indicator if no content
+                    showTypingIndicator("Thinking");
+                }
             } else if (data.type === 'tool_start') {
                 // Show tool-specific typing indicator
                 const toolName = data.tool_name || 'tool';
@@ -216,6 +282,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Hide typing indicator and ensure message is complete
                 hideTypingIndicator();
                 currentAssistantMessageDiv = null; // Reset for the next message
+                currentThinkingDiv = null; // Reset thinking display for next message
                 setTimeout(scrollToBottom, 100);
             } else if (data.type === 'error') {
                 hideTypingIndicator();
@@ -360,6 +427,21 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             sendMessage();
         }
+    });
+    
+    // Initialize thinking toggle
+    const thinkingToggle = document.getElementById('thinking-toggle');
+    thinkingToggle.checked = thinkingToggleState;
+    
+    thinkingToggle.addEventListener('change', (e) => {
+        thinkingToggleState = e.target.checked;
+        localStorage.setItem('thinkingToggle', thinkingToggleState);
+        
+        // Hide/show existing thinking displays
+        const thinkingDisplays = document.querySelectorAll('.thinking-display');
+        thinkingDisplays.forEach(display => {
+            display.style.display = thinkingToggleState ? 'flex' : 'none';
+        });
     });
     
     // Initialize
