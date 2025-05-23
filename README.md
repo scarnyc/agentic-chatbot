@@ -20,6 +20,8 @@ A powerful agentic workflow system built with FastAPI, LangGraph, and Anthropic 
 - **Code Execution**: Secure Python environment with mathematical libraries
 - **DateTime Tools**: Automatic current date retrieval for time-sensitive queries
 - **Large Number Handling**: Stirling's approximation for factorial calculations
+- **File Upload**: Support for images and PDFs with vision analysis
+- **Vector Database**: PostgreSQL + pgvector for enhanced multimodal memory
 
 🛡️ **Smart Content Filtering**
 - Prevents raw tool output from displaying to users
@@ -78,21 +80,51 @@ A powerful agentic workflow system built with FastAPI, LangGraph, and Anthropic 
    pip install -r requirements.txt
    ```
 
-3. **Set up environment variables**
+3. **Install multimodal dependencies (optional)**
+   For enhanced image embeddings with CLIP:
+   ```bash
+   pip install torch torchvision transformers
+   ```
+   *Note: System works with text-only embeddings if these are not installed.*
+
+4. **Set up environment variables**
    Create a `.env` file in the project root:
    ```env
    ANTHROPIC_API_KEY=your_anthropic_api_key_here
    TAVILY_API_KEY=your_tavily_api_key_here
    OPENAI_API_KEY=your_openai_api_key_here  # Optional: For long-term memory
+   DATABASE_URL=postgresql://username:password@localhost:5432/agentic_vectors  # Optional: For PostgreSQL vector storage
    ```
 
-4. **Run the application**
+5. **Run the application**
    ```bash
    python main.py
    ```
 
-5. **Open your browser**
+6. **Optional: PostgreSQL Vector Database Setup**
+   For enhanced multimodal memory with vector embeddings:
+   ```bash
+   # Install PostgreSQL 16 with pgvector (macOS)
+   brew install postgresql@16
+   brew services start postgresql@16
+   
+   # Install pgvector extension
+   git clone https://github.com/pgvector/pgvector.git
+   cd pgvector
+   make
+   make install
+   
+   # Create database and user
+   createdb agentic_vectors
+   psql agentic_vectors -c "CREATE EXTENSION vector;"
+   ```
+
+7. **Open your browser**
    Navigate to `http://localhost:8000`
+
+## File Cleanup
+
+The `install_deps.py` file can be safely deleted - it was a temporary installation helper that is no longer needed.
 
 ## Architecture
 

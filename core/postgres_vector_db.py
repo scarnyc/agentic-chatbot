@@ -184,7 +184,8 @@ class PostgreSQLVectorDB:
                     self.clip_model = None
                     self.clip_processor = None
             else:
-                logger.info("Transformers not available, using text-only embeddings for images")
+                logger.info("Transformers/PyTorch not available - install with: pip install torch torchvision transformers")
+                logger.info("Using text-only embeddings for images (functionality is limited but working)")
                 self.clip_model = None
                 self.clip_processor = None
             
