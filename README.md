@@ -605,6 +605,7 @@ User Query
 - App optimized for security, speed & efficiency
 - Generative UI
 - User Feedback Loop: Add a thumbs up/down mechanism to collect feedback on answers
+- chatterbox.ai voice integration
 
 ---
 
