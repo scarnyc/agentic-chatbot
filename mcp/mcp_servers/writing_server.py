@@ -13,7 +13,7 @@ from typing import Optional
 # Add parent directory to path first
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from mcp.server.fastmcp import FastMCP
+from mcp.mcp_server_base import FastMCP
 
 try:
     from openai import OpenAI

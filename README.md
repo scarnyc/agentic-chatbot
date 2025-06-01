@@ -165,7 +165,7 @@ agentic-workflow/
 │   ├── setup_postgres.sql       # PostgreSQL + pgvector setup script
 │   └── README.md                # Database setup instructions
 ├── tools/                        # Tool implementations (used by MCP servers)
-│   ├── code_tools.py            # Python execution with security
+│   ├── secure_executor.py       # Secure Python execution with sandboxing
 │   ├── search_tools.py          # Tavily web search integration
 │   ├── wiki_tools.py            # Wikipedia API wrapper
 │   ├── datetime_tools.py        # Current date/time for context
@@ -565,7 +565,7 @@ mypy .
 
 1. Create a new tool file in `tools/`
 2. Implement the tool function
-3. Add to `tools/code_tools.py` or create new category
+3. Add to `tools/secure_executor.py` or create new category
 4. Update `core/app.py` to include the tool
 5. Add usage guidelines to `tools/prompt.py`
 

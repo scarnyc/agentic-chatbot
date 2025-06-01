@@ -9,7 +9,7 @@ import os
 import sys
 from datetime import datetime, timezone
 
-from mcp.server.fastmcp import FastMCP
+from mcp.mcp_server_base import FastMCP
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

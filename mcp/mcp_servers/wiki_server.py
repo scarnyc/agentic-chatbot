@@ -12,7 +12,7 @@ from urllib.parse import quote
 # Add parent directory to path first
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from mcp.server.fastmcp import FastMCP
+from mcp.mcp_server_base import FastMCP
 
 from langchain_community.utilities import WikipediaAPIWrapper
 from core.cache import cache

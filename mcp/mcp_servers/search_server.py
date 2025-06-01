@@ -11,7 +11,7 @@ import sys
 # Add parent directory to path first
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from mcp.server.fastmcp import FastMCP
+from mcp.mcp_server_base import FastMCP
 
 from langchain_community.tools.tavily_search.tool import TavilySearchResults
 from tools.search_tools import process_search_results

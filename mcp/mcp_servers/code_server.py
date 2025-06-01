@@ -11,7 +11,7 @@ import os
 # Add parent directory to path first
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from mcp.server.fastmcp import FastMCP
+from mcp.mcp_server_base import FastMCP
 from tools.secure_executor import secure_python_exec
 from tools.math_tools import stirling_approximation_factorial
 

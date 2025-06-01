@@ -241,12 +241,13 @@ To help you with writing, try requests like:
 What would you like me to help you write?"""
         
         # If it's a writing request, generate the content
-        return generate_content(
-            content_type=analysis['content_type'],
-            prompt=analysis['original_prompt'],
-            tone=analysis['tone'],
-            length=analysis['length']
-        )
+        return generate_content.invoke({
+            "content_type": analysis['content_type'],
+            "prompt": analysis['original_prompt'],
+            "tone": analysis['tone'],
+            "length": analysis['length'],
+            "additional_context": ""
+        })
         
     except Exception as e:
         logger.error(f"Error in smart writing assistant: {e}")
