@@ -131,6 +131,54 @@ class EnhancedMCPSession:
                     "category": arguments.get("category", "visual_analysis")
                 })
             
+            # Writing tools fallback implementations
+            elif tool_name == "analyze_writing_request":
+                try:
+                    from tools.writing_tools import analyze_writing_request
+                    return analyze_writing_request.invoke(arguments.get("prompt", ""))
+                except ImportError:
+                    # Basic fallback analysis
+                    prompt = arguments.get("prompt", "").lower()
+                    writing_keywords = ['write', 'draft', 'compose', 'create', 'email', 'blog', 'linkedin', 'letter']
+                    if any(keyword in prompt for keyword in writing_keywords):
+                        return "Writing request detected: general"
+                    return "No writing request detected"
+            
+            elif tool_name == "generate_content":
+                try:
+                    from tools.writing_tools import generate_content
+                    return generate_content.invoke({
+                        "content_type": arguments.get("content_type", "general"),
+                        "request": arguments.get("request", ""),
+                        "tone": arguments.get("tone", "professional"),
+                        "length": arguments.get("length", "medium"),
+                        "audience": arguments.get("audience", "general")
+                    })
+                except ImportError:
+                    return f"Writing assistance not available - missing writing tools module. Request: {arguments.get('request', '')}"
+            
+            elif tool_name == "smart_writing_assistant":
+                try:
+                    from tools.writing_tools import smart_writing_assistant
+                    return smart_writing_assistant.invoke(arguments.get("prompt", ""))
+                except ImportError:
+                    return f"Smart writing assistant not available - missing writing tools module. Prompt: {arguments.get('prompt', '')}"
+            
+            elif tool_name == "get_writing_templates":
+                try:
+                    from tools.writing_tools import get_writing_templates
+                    return get_writing_templates.invoke("")
+                except ImportError:
+                    return """**Writing Templates Available:**
+                    
+**Email Templates:** Professional inquiry, follow-up, thank you, feedback
+**LinkedIn Posts:** Career milestone, industry insight, professional achievement  
+**Blog Posts:** How-to guide, industry analysis, personal story
+**Business Writing:** Proposal, report, meeting summary, business letter
+**Marketing Content:** Product description, social media, advertisement copy
+
+**Usage:** Ask me to write any of these content types!"""
+            
             else:
                 return f"Unknown tool: {tool_name}"
                 
@@ -313,7 +361,34 @@ class EnhancedMCPClient:
             - Understand visual content in conversations
             - Extract information from images, charts, diagrams
             - Build visual memory for future reference
-            - Combine image analysis with searchable storage"""
+            - Combine image analysis with searchable storage""",
+            "analyze_writing_request": """Analyze if a prompt contains a writing request and identify the type.
+            
+            Use this tool to:
+            - Detect writing requests in user prompts
+            - Identify specific writing types (email, blog post, LinkedIn, etc.)
+            - Prepare for appropriate writing assistance""",
+            "generate_content": """Generate written content using GPT-4o-mini for various content types.
+            
+            Use this tool to:
+            - Create professional emails, blog posts, LinkedIn updates
+            - Write marketing copy, proposals, reports
+            - Generate content with specific tone, length, and audience
+            - Produce high-quality written content for any purpose""",
+            "smart_writing_assistant": """Intelligent writing assistant that automatically detects writing requests and generates appropriate content.
+            
+            Use this tool when users ask to:
+            - Write any type of content (emails, posts, articles, etc.)
+            - Draft professional or personal communications
+            - Create marketing or business content
+            - Get writing help with automatic format detection""",
+            "get_writing_templates": """Get templates and examples for different types of writing.
+            
+            Use this tool to:
+            - Show available writing templates and examples
+            - Help users understand what types of content can be created
+            - Provide inspiration for writing requests
+            - Display writing categories and options"""
         }
     
     def _get_tool_input_schema(self, tool_name: str) -> Dict[str, Any]:
@@ -399,6 +474,36 @@ class EnhancedMCPClient:
                     "category": {"type": "string", "description": "Storage category", "default": "visual_analysis"}
                 },
                 "required": ["image_base64"]
+            },
+            "analyze_writing_request": {
+                "type": "object",
+                "properties": {
+                    "prompt": {"type": "string", "description": "User prompt to analyze for writing requests"}
+                },
+                "required": ["prompt"]
+            },
+            "generate_content": {
+                "type": "object",
+                "properties": {
+                    "content_type": {"type": "string", "description": "Type of content (email, blog_post, linkedin, etc.)"},
+                    "request": {"type": "string", "description": "Specific writing request/prompt"},
+                    "tone": {"type": "string", "description": "Tone for content (professional, casual, formal, friendly)", "default": "professional"},
+                    "length": {"type": "string", "description": "Length preference (short, medium, long)", "default": "medium"},
+                    "audience": {"type": "string", "description": "Target audience (general, professional, technical, casual)", "default": "general"}
+                },
+                "required": ["content_type", "request"]
+            },
+            "smart_writing_assistant": {
+                "type": "object",
+                "properties": {
+                    "prompt": {"type": "string", "description": "User's writing request"}
+                },
+                "required": ["prompt"]
+            },
+            "get_writing_templates": {
+                "type": "object",
+                "properties": {},
+                "required": []
             }
         }
         return schemas.get(tool_name, {})
@@ -584,6 +689,25 @@ def create_langchain_tools_from_mcp_client(client: EnhancedMCPClient) -> List[To
                             store_in_memory=store_in_memory,
                             category=category
                         )
+                elif wrapper_instance.tool_def.name == "analyze_writing_request":
+                    def tool_func(prompt: str) -> str:
+                        return wrapper_instance(prompt=prompt)
+                elif wrapper_instance.tool_def.name == "generate_content":
+                    def tool_func(content_type: str, prompt: str, tone: str = "professional", 
+                                length: str = "medium", additional_context: str = "") -> str:
+                        return wrapper_instance(
+                            content_type=content_type,
+                            prompt=prompt,
+                            tone=tone,
+                            length=length,
+                            additional_context=additional_context
+                        )
+                elif wrapper_instance.tool_def.name == "smart_writing_assistant":
+                    def tool_func(prompt: str) -> str:
+                        return wrapper_instance(prompt=prompt)
+                elif wrapper_instance.tool_def.name == "get_writing_templates":
+                    def tool_func(content_type: str = "") -> str:
+                        return wrapper_instance(content_type=content_type)
                 else:
                     def tool_func(**kwargs) -> str:
                         return wrapper_instance(**kwargs)

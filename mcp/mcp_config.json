@@ -40,6 +40,16 @@
         "get_vector_db_info",
         "analyze_image_and_store"
       ]
+    },
+    "writing-server": {
+      "command": ["python", "mcp/mcp_servers/writing_server.py"],
+      "description": "Professional writing assistance using GPT-4o-mini for various content types",
+      "tools": [
+        "analyze_writing_request",
+        "generate_content",
+        "smart_writing_assistant",
+        "get_writing_templates"
+      ]
     }
   }
 }
