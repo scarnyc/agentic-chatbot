@@ -14,7 +14,7 @@ A powerful agentic workflow system built with FastAPI, LangGraph, and Anthropic 
 - **Markdown support**: Automatic parsing of headers, **bold**, *italic*, and clickable hyperlinks
 - Responsive design with REM-based CSS
 
-🔧 **Multi-Tool Integration**
+🔧 **Multi-Tool Integration via Enhanced MCP**
 - **Web Search**: Tavily API integration for current information
 - **Wikipedia Access**: Comprehensive knowledge base queries
 - **Code Execution**: Secure Python environment with mathematical libraries
@@ -22,6 +22,7 @@ A powerful agentic workflow system built with FastAPI, LangGraph, and Anthropic 
 - **Large Number Handling**: Stirling's approximation for factorial calculations
 - **File Upload**: Support for images and PDFs with vision analysis
 - **Vector Database**: PostgreSQL + pgvector for enhanced multimodal memory
+- **MCP Architecture**: Model Context Protocol with multiple server sessions
 
 🛡️ **Smart Content Filtering**
 - Prevents raw tool output from displaying to users
@@ -57,7 +58,8 @@ A powerful agentic workflow system built with FastAPI, LangGraph, and Anthropic 
 - FastAPI backend with WebSocket support
 - LangGraph for workflow orchestration
 - Anthropic Claude 4 Sonnet with enhanced thinking capabilities
-- Persistent conversation memory
+- **Enhanced MCP**: Multiple server sessions with tool-to-session mapping
+- Persistent conversation memory with vector embeddings
 
 ## Quick Start
 
@@ -94,6 +96,7 @@ A powerful agentic workflow system built with FastAPI, LangGraph, and Anthropic 
    TAVILY_API_KEY=your_tavily_api_key_here
    OPENAI_API_KEY=your_openai_api_key_here  # Optional: For long-term memory
    DATABASE_URL=postgresql://username:password@localhost:5432/agentic_vectors  # Optional: For PostgreSQL vector storage
+   PINECONE_API_KEY=your_pinecone_api_key_here  # Alternative: For cloud vector storage
    ```
 
 5. **Run the application**
@@ -101,36 +104,35 @@ A powerful agentic workflow system built with FastAPI, LangGraph, and Anthropic 
    python main.py
    ```
 
-6. **Optional: PostgreSQL Vector Database Setup**
-   For enhanced multimodal memory with vector embeddings:
+6. **Optional: Vector Database Setup**
+   Choose one of the following for enhanced multimodal memory:
+   
+   **Option A: PostgreSQL (Recommended - Cost-effective)**
    ```bash
-   # Install PostgreSQL 16 with pgvector (macOS)
-   brew install postgresql@16
-   brew services start postgresql@16
+   # Follow detailed setup instructions
+   cat database/README.md
    
-   # Install pgvector extension
-   git clone https://github.com/pgvector/pgvector.git
-   cd pgvector
-   make
-   make install
-   
-   # Create database and user
-   createdb agentic_vectors
-   psql agentic_vectors -c "CREATE EXTENSION vector;"
+   # Quick setup
+   psql -U postgres -f database/setup_postgres.sql
    ```
+   
+   **Option B: Pinecone (Cloud)**
+   ```bash
+   # Just set your API key in .env
+   PINECONE_API_KEY=your_pinecone_api_key_here
+   ```
+   
+   **Option C: Mock Database (Default)**
+   No setup required - automatically used if neither above is configured.
 
 7. **Open your browser**
    Navigate to `http://localhost:8000`
-
-## File Cleanup
-
-The `install_deps.py` file can be safely deleted - it was a temporary installation helper that is no longer needed.
 
 ## Architecture
 
 ### System Overview
 
-This is an **agentic workflow system** built with FastAPI, LangGraph, and Anthropic Claude that provides intelligent tool orchestration with advanced error recovery and caching.
+This is an **agentic workflow system** built with FastAPI, LangGraph, and Anthropic Claude that provides intelligent tool orchestration via **Enhanced MCP (Model Context Protocol)** with advanced error recovery and caching.
 
 ### Core Components
 
@@ -138,15 +140,31 @@ This is an **agentic workflow system** built with FastAPI, LangGraph, and Anthro
 agentic-workflow/
 ├── main.py                       # FastAPI server with WebSocket endpoints
 ├── core/                         # Core system components
-│   ├── app.py                   # LangGraph workflow configuration
+│   ├── app.py                   # LangGraph workflow with MCP integration
 │   ├── cache.py                 # In-memory cache with TTL support
 │   ├── error_recovery.py        # Circuit breaker pattern & error handling
 │   ├── logging_config.py        # Comprehensive logging system
 │   ├── cache_monitor.py         # Real-time cache monitoring utility
 │   ├── error_recovery_monitor.py # Error recovery monitoring & trends
 │   ├── long_term_memory.py      # OpenAI embeddings-based memory store
-│   └── memory_agent.py          # Memory-enhanced agent with extraction
-├── tools/                        # Modular tool implementations
+│   ├── memory_agent.py          # Memory-enhanced agent with extraction
+│   ├── postgres_vector_db.py    # PostgreSQL vector database implementation
+│   ├── vector_db_factory.py     # Auto-detection of available databases
+│   └── mock_vector_db.py        # Fallback mock database
+├── mcp/                          # Enhanced MCP implementation
+│   ├── enhanced_mcp_tools.py    # Multi-server MCP client with session management
+│   ├── mcp_config.json          # Server configuration and tool mapping
+│   ├── mcp_servers/             # Individual MCP server implementations
+│   │   ├── code_server.py       # Python execution & mathematical tools
+│   │   ├── search_server.py     # Tavily web search capabilities
+│   │   ├── wiki_server.py       # Wikipedia search functionality
+│   │   ├── datetime_server.py   # Time-sensitive date/time tools
+│   │   └── multimodal_server.py # Vector database & multimodal operations
+│   └── MCP_IMPLEMENTATION.md    # Detailed MCP architecture documentation
+├── database/                     # Database setup and migrations
+│   ├── setup_postgres.sql       # PostgreSQL + pgvector setup script
+│   └── README.md                # Database setup instructions
+├── tools/                        # Tool implementations (used by MCP servers)
 │   ├── code_tools.py            # Python execution with security
 │   ├── search_tools.py          # Tavily web search integration
 │   ├── wiki_tools.py            # Wikipedia API wrapper
@@ -175,16 +193,40 @@ agentic-workflow/
     └── procedural_memories.json # Learned patterns
 ```
 
+### Enhanced MCP Architecture
+
+The system uses **Model Context Protocol (MCP)** with multiple server sessions for robust tool orchestration:
+
+#### **Key MCP Features:**
+- **Multiple Client Sessions**: Each tool category runs in its own MCP server process
+- **Tool-to-Session Mapping**: Efficient routing of tool calls to appropriate servers  
+- **Resource Management**: Proper cleanup with ExitStack context manager
+- **Modular Design**: Easy to extend with new servers and tools
+
+#### **MCP Servers:**
+- **code-server**: Python execution and mathematical computations
+- **search-server**: Web search via Tavily API with caching
+- **wiki-server**: Wikipedia search with intelligent content processing
+- **datetime-server**: Current date/time for time-sensitive queries  
+- **multimodal-server**: Vector database operations and multimodal memory
+
+#### **Benefits:**
+- **Scalability**: Each server runs independently, no single point of failure
+- **Maintainability**: Clear separation of concerns between tool categories
+- **Performance**: Direct tool-to-session mapping for fast routing
+- **Future-Ready**: Prepared for remote MCP server deployment
+
 ### Data Flow
 
 1. **User Input** → WebSocket connection established
-2. **Memory Retrieval** → Semantic search for relevant context
+2. **Memory Retrieval** → Semantic search for relevant context from vector database
 3. **Message Processing** → LangGraph workflow orchestration with memory context
-4. **Tool Execution** → Wikipedia, web search, or code execution
-5. **Response Streaming** → Real-time chunks via WebSocket
-6. **Content Filtering** → Intelligent formatting and validation
-7. **Memory Extraction** → Automatic memory processing on conversation end
-8. **UI Display** → Responsive message bubbles with proper spacing
+4. **MCP Tool Routing** → Tool calls routed to appropriate MCP server sessions
+5. **Tool Execution** → Parallel execution across specialized MCP servers
+6. **Response Streaming** → Real-time chunks via WebSocket
+7. **Content Filtering** → Intelligent formatting and validation
+8. **Memory Extraction** → Automatic memory processing and vector storage
+9. **UI Display** → Responsive message bubbles with proper spacing
 
 ## API Endpoints
 
@@ -222,40 +264,57 @@ agentic-workflow/
 }
 ```
 
-## Tool Capabilities
+## Tool Capabilities via Enhanced MCP
 
-### 🌐 Web Search (Tavily)
+All tools are accessed through the **Enhanced MCP (Model Context Protocol)** architecture, providing robust session management and efficient routing.
+
+### 🌐 Web Search (Tavily) - `search-server`
 - Current events and news
 - Real-time information
 - Market data and trends
 - Product information
+- **Caching**: 30-minute TTL for search results
+- **Processing**: Token-optimized result formatting
 
 **Example:** *"What are the latest developments in AI?"*
 
-### 📚 Wikipedia Integration
+### 📚 Wikipedia Integration - `wiki-server`
 - Historical information
 - Biographical data
 - Scientific concepts
 - General knowledge
 - **Security**: URL encoding, input validation, query sanitization
+- **Caching**: 24-hour TTL for stable content
 
 **Example:** *"Tell me about the Roman Empire"*
 
-### 🐍 Code Execution
+### 🐍 Code Execution - `code-server`
 - Mathematical calculations
 - Data analysis
 - Algorithm implementation
 - Scientific computing with mpmath
+- **Security**: Sandboxed execution environment
+- **Features**: Stirling approximation for large factorials
 
 **Example:** *"Calculate the factorial of 100"*
 
-### ⏰ DateTime Context Tools
+### ⏰ DateTime Context Tools - `datetime-server`
 - Automatic current date retrieval for time-sensitive queries
 - Resolves relative time references ("this week", "next week", "recently")
 - Eliminates confusion from model knowledge cutoff
 - Contextualizes search queries with accurate timeframes
+- **Tools**: Current datetime, simple date format for search context
 
 **Example:** *"What's the weather next week in Miami?"* automatically gets current date, calculates "next week", then searches with proper date context.
+
+### 🎯 Multimodal Operations - `multimodal-server`
+- Vector database operations (PostgreSQL/Pinecone/Mock)
+- Text and image memory storage
+- Semantic similarity search
+- Database auto-detection and health monitoring
+- **Features**: Store/search text, store/analyze images, database info
+
+**Example:** Store important facts, search previous conversations, analyze uploaded images
 
 ### 🧠 Long-term Memory System
 
@@ -435,6 +494,59 @@ grep -r "quote\|sanitize\|validate" tools/
 ```
 
 ## Development
+
+### Enhanced MCP Development
+
+#### **Working with MCP Servers:**
+
+```bash
+# Test MCP client functionality
+python -c "from mcp import get_enhanced_mcp_tools; tools = get_enhanced_mcp_tools(); print(f'Loaded {len(tools)} tools')"
+
+# View MCP configuration
+cat mcp/mcp_config.json
+
+# View detailed MCP documentation
+cat mcp/MCP_IMPLEMENTATION.md
+
+# Test individual MCP server
+python mcp/mcp_servers/datetime_server.py
+```
+
+#### **Adding New MCP Servers:**
+
+1. **Create server file** in `mcp/mcp_servers/new_server.py`
+2. **Update configuration** in `mcp/mcp_config.json`
+3. **Add tool definitions** in `mcp/enhanced_mcp_tools.py`
+4. **Test integration** with the main app
+
+#### **MCP Server Structure:**
+```python
+from mcp.server.fastmcp import FastMCP
+
+mcp = FastMCP("Your Server Name")
+
+@mcp.tool()
+def your_tool(param: str) -> str:
+    """Tool description"""
+    return f"Result: {param}"
+
+if __name__ == "__main__":
+    mcp.run()
+```
+
+#### **Vector Database Development:**
+
+```bash
+# Test PostgreSQL setup
+python -c "from core.vector_db_factory import VectorDBFactory; db = VectorDBFactory.create_vector_db(); print(db.get_stats())"
+
+# View database setup instructions
+cat database/README.md
+
+# Check which database is being used
+python -c "from core.vector_db_factory import VectorDBFactory; print(VectorDBFactory.get_available_databases())"
+```
 
 ### Code Quality
 
