@@ -148,7 +148,7 @@ class EnhancedMCPSession:
 class EnhancedMCPClient:
     """Enhanced MCP client that can connect to multiple servers."""
     
-    def __init__(self, config_file: str = "mcp_config.json"):
+    def __init__(self, config_file: str = "mcp/mcp_config.json"):
         """
         Initialize the enhanced MCP client.
         
@@ -608,7 +608,7 @@ def create_langchain_tools_from_mcp_client(client: EnhancedMCPClient) -> List[To
 # Global instance for the enhanced MCP client
 enhanced_mcp_client: Optional[EnhancedMCPClient] = None
 
-async def initialize_enhanced_mcp_client(config_file: str = "mcp_config.json") -> EnhancedMCPClient:
+async def initialize_enhanced_mcp_client(config_file: str = "mcp/mcp_config.json") -> EnhancedMCPClient:
     """
     Initialize the global enhanced MCP client.
     

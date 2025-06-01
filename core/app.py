@@ -22,7 +22,7 @@ from core.long_term_memory import LongTermMemoryStore
 from core.memory_agent import MemoryEnhancedAgent, create_memory_enhanced_system_message
 
 from tools.prompt import get_prompt
-from enhanced_mcp_tools import get_enhanced_mcp_tools
+from mcp.enhanced_mcp_tools import get_enhanced_mcp_tools
 
 load_dotenv()
 
