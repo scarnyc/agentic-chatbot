@@ -22,7 +22,7 @@ from core.long_term_memory import LongTermMemoryStore
 from core.memory_agent import MemoryEnhancedAgent, create_memory_enhanced_system_message
 
 from tools.prompt import get_prompt
-from simple_mcp_tools import get_simple_mcp_tools
+from enhanced_mcp_tools import get_enhanced_mcp_tools
 
 load_dotenv()
 
@@ -189,10 +189,10 @@ if not tavily_api_key:
 
 llm = create_anthropic_model_with_error_handling()
 
-# Initialize MCP tools
-logger.info("Initializing MCP tools...")
-tools = get_simple_mcp_tools()
-logger.info(f"Loaded {len(tools)} MCP tools")
+# Initialize Enhanced MCP tools
+logger.info("Initializing Enhanced MCP tools...")
+tools = get_enhanced_mcp_tools()
+logger.info(f"Loaded {len(tools)} Enhanced MCP tools")
 tool_node = ToolNode(tools)
 model_with_tools = llm.bind_tools(tools)
 prompt_template = ChatPromptTemplate.from_messages([

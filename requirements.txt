@@ -38,6 +38,10 @@ Pillow>=10.0.0
 psycopg2-binary>=2.9.0
 pgvector>=0.2.0
 
+# MCP (Model Context Protocol) support
+mcp>=1.9.0
+mcp-python>=0.1.0
+
 # Development & debugging
 pytest>=7.4.3
 black>=23.11.0
