@@ -1,0 +1,359 @@
+#!/usr/bin/env python3
+"""
+MCP Server for multimodal and vector database tools.
+Provides text/image storage, search, and analysis capabilities.
+"""
+
+import base64
+import io
+import json
+import logging
+import os
+import sys
+
+# Add parent directory to path first
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
+from mcp.server.fastmcp import FastMCP
+
+try:
+    from PIL import Image
+    HAS_PIL = True
+except ImportError:
+    HAS_PIL = False
+
+from core.vector_db_factory import vector_db_factory
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("multimodal-server")
+
+# Create FastMCP server
+mcp = FastMCP("Multimodal Server")
+
+def get_current_vector_db():
+    """Get the current vector database instance."""
+    try:
+        return vector_db_factory.create_vector_db()
+    except Exception as e:
+        logger.error(f"Failed to get vector database: {e}")
+        return None
+
+@mcp.tool()
+def store_text_memory(content: str, category: str = "general", metadata: str = "{}") -> str:
+    """
+    Store text content in the vector database for long-term memory.
+    
+    Args:
+        content: The text content to store
+        category: Category of the content (e.g., "fact", "preference", "conversation")
+        metadata: JSON string with additional metadata
+    
+    Returns:
+        Success or error message
+    """
+    try:
+        vector_db = get_current_vector_db()
+        if not vector_db:
+            return "Vector database not available. Check configuration (DATABASE_URL or PINECONE_API_KEY)."
+        
+        metadata_dict = json.loads(metadata) if metadata != "{}" else {}
+        
+        success = vector_db.store_text_memory(
+            content=content,
+            category=category,
+            metadata=metadata_dict
+        )
+        
+        if success:
+            db_type = type(vector_db).__name__
+            logger.info(f"Stored text in {db_type}: category={category}, content_length={len(content)}")
+            return f"Successfully stored text content in vector database (category: {category})"
+        else:
+            return "Failed to store text content - vector database error"
+            
+    except Exception as e:
+        error_msg = f"Error storing text in vector database: {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+@mcp.tool()
+def store_image_memory(image_base64: str, description: str, metadata: str = "{}") -> str:
+    """
+    Store an image with description in the vector database for multimodal memory.
+    
+    Args:
+        image_base64: Base64 encoded image data
+        description: Text description of the image content
+        metadata: JSON string with additional metadata
+    
+    Returns:
+        Success or error message
+    """
+    try:
+        vector_db = get_current_vector_db()
+        if not vector_db:
+            return "Vector database not available. Check configuration (DATABASE_URL or PINECONE_API_KEY)."
+        
+        metadata_dict = json.loads(metadata) if metadata != "{}" else {}
+        
+        # Validate image data
+        if HAS_PIL:
+            try:
+                image_bytes = base64.b64decode(image_base64)
+                image = Image.open(io.BytesIO(image_bytes))
+                image.verify()  # Check if image is valid
+            except Exception as e:
+                return f"Invalid image data: {str(e)}"
+        else:
+            try:
+                image_bytes = base64.b64decode(image_base64)
+            except Exception as e:
+                return f"Invalid base64 image data: {str(e)}"
+        
+        success = vector_db.store_image_memory(
+            image_data=image_base64,
+            description=description,
+            metadata=metadata_dict
+        )
+        
+        if success:
+            db_type = type(vector_db).__name__
+            logger.info(f"Stored image in {db_type}: description_length={len(description)}")
+            return f"Successfully stored image in vector database with description: {description[:100]}..."
+        else:
+            return "Failed to store image - vector database error"
+            
+    except Exception as e:
+        error_msg = f"Error storing image in vector database: {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+@mcp.tool()
+def search_memories(query: str, query_type: str = "text", limit: int = 5, category_filter: str = "") -> str:
+    """
+    Search the vector database for relevant content using semantic similarity.
+    
+    Args:
+        query: Search query text
+        query_type: Type of search ("text" or "multimodal")
+        limit: Maximum number of results to return (1-20)
+        category_filter: Optional category to filter results
+    
+    Returns:
+        Formatted search results or error message
+    """
+    try:
+        vector_db = get_current_vector_db()
+        if not vector_db:
+            return "Vector database not available. Check configuration (DATABASE_URL or PINECONE_API_KEY)."
+        
+        # Validate inputs
+        limit = max(1, min(20, limit))
+        if query_type not in ["text", "multimodal"]:
+            query_type = "text"
+        
+        # Build filter
+        filter_metadata = {}
+        if category_filter:
+            filter_metadata["category"] = category_filter
+        
+        results = vector_db.search_memories(
+            query=query,
+            query_type=query_type,
+            limit=limit,
+            filter_metadata=filter_metadata if filter_metadata else None
+        )
+        
+        if not results:
+            return "No relevant memories found in vector database."
+        
+        # Format results
+        formatted_results = []
+        for i, result in enumerate(results, 1):
+            content_preview = result["content"][:200] + "..." if len(result["content"]) > 200 else result["content"]
+            
+            result_text = f"{i}. **{result['content_type'].title()} Memory** (Score: {result['score']:.3f})\n"
+            result_text += f"   Content: {content_preview}\n"
+            
+            # Add metadata info
+            metadata = result.get("metadata", {})
+            if metadata:
+                metadata_items = []
+                for key, value in metadata.items():
+                    if key not in ["timestamp"]:  # Skip timestamp for brevity
+                        metadata_items.append(f"{key}: {value}")
+                if metadata_items:
+                    result_text += f"   Metadata: {', '.join(metadata_items)}\n"
+            
+            # Note if image is attached
+            if result.get("image_data"):
+                result_text += f"   📷 Contains image data\n"
+            
+            formatted_results.append(result_text)
+        
+        db_type = type(vector_db).__name__
+        logger.info(f"{db_type} search: query='{query[:50]}...', results={len(results)}")
+        
+        response = f"Found {len(results)} relevant memories:\n\n" + "\n".join(formatted_results)
+        return response
+        
+    except Exception as e:
+        error_msg = f"Error searching vector database: {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+@mcp.tool()
+def get_vector_db_info() -> str:
+    """
+    Get information about the current vector database configuration and available options.
+    
+    Returns:
+        Database information and status
+    """
+    try:
+        # Get information about available databases
+        available_dbs = vector_db_factory.get_available_databases()
+        
+        # Current database info
+        vector_db = get_current_vector_db()
+        if vector_db:
+            current_stats = vector_db.get_stats()
+            current_db_name = type(vector_db).__name__
+            health_status = "healthy" if vector_db.health_check() else "unhealthy"
+        else:
+            current_stats = {"status": "not_initialized"}
+            current_db_name = "None"
+            health_status = "not_available"
+        
+        response = f"""Vector Database Configuration:
+
+🎯 **Currently Active**: {current_db_name}
+📊 **Status**: {current_stats.get('status', 'unknown').title()}
+💚 **Health**: {health_status.title()}
+
+📈 **Current Database Stats**:
+"""
+        
+        if vector_db and current_stats.get("status") == "connected":
+            response += f"""- Total Vectors: {current_stats.get('total_vectors', 0):,}
+- Namespace: {current_stats.get('namespace', 'default')}
+- Database Type: {current_stats.get('database_type', current_db_name)}
+"""
+            if current_stats.get('table_size'):
+                response += f"- Storage Size: {current_stats.get('table_size')}\n"
+        else:
+            response += "- No active database connection\n"
+        
+        response += f"""
+🔧 **Available Databases**:
+
+**PostgreSQL**:
+- Available: {'✅ Yes' if available_dbs['postgresql']['available'] else '❌ No'}
+"""
+        
+        if available_dbs['postgresql']['available']:
+            response += f"- Configuration: {available_dbs['postgresql'].get('config', 'Local')}\n"
+        else:
+            response += f"- Issue: {available_dbs['postgresql']['reason']}\n"
+        
+        response += f"""
+**Pinecone**:
+- Available: {'✅ Yes' if available_dbs['pinecone']['available'] else '❌ No'}
+"""
+        
+        if available_dbs['pinecone']['available']:
+            response += f"- Configuration: {available_dbs['pinecone'].get('config', 'Configured')}\n"
+        else:
+            response += f"- Issue: {available_dbs['pinecone']['reason']}\n"
+        
+        response += """
+💡 **Setup Instructions**:
+- PostgreSQL: Set DATABASE_URL environment variable
+- Pinecone: Set PINECONE_API_KEY environment variable
+- Auto-detection prioritizes PostgreSQL (cost-effective) over Pinecone
+"""
+        
+        logger.info(f"Vector DB info requested: active={current_db_name}")
+        
+        return response
+        
+    except Exception as e:
+        error_msg = f"Error getting vector database info: {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+@mcp.tool()
+def analyze_image_and_store(
+    image_base64: str,
+    analysis_request: str = "Analyze this image and describe what you see",
+    store_in_memory: bool = True,
+    category: str = "visual_analysis"
+) -> str:
+    """
+    Analyze an image using Claude's vision capabilities and optionally store in vector database.
+    
+    Args:
+        image_base64: Base64 encoded image data
+        analysis_request: What to analyze about the image
+        store_in_memory: Whether to store the analysis in vector database
+        category: Category for storage if store_in_memory is True
+    
+    Returns:
+        Analysis results and storage confirmation
+    """
+    try:
+        analysis = f"Image analysis requested: {analysis_request}\n"
+        analysis += "📷 Image received and processed.\n"
+        
+        # Validate image
+        if HAS_PIL:
+            try:
+                image_bytes = base64.b64decode(image_base64)
+                image = Image.open(io.BytesIO(image_bytes))
+                width, height = image.size
+                format_type = image.format
+                analysis += f"📐 Image dimensions: {width}x{height}, Format: {format_type}\n"
+            except Exception as e:
+                return f"Invalid image data: {str(e)}"
+        else:
+            try:
+                image_bytes = base64.b64decode(image_base64)
+                analysis += f"📐 Image validated: {len(image_bytes)} bytes\n"
+            except Exception as e:
+                return f"Invalid base64 image data: {str(e)}"
+        
+        # TODO: Integrate with Claude vision API when available in LangChain
+        analysis += "\n🔧 **Note**: Full Claude vision integration pending LangChain support.\n"
+        analysis += "Currently processing image metadata and preparing for analysis.\n"
+        
+        # Store in vector database if requested
+        if store_in_memory:
+            vector_db = get_current_vector_db()
+            if vector_db:
+                description = f"Image analysis: {analysis_request} - {format_type} image ({width}x{height})"
+                success = vector_db.store_image_memory(
+                    image_data=image_base64,
+                    description=description,
+                    metadata={"category": category, "analysis_type": analysis_request}
+                )
+                
+                if success:
+                    db_type = type(vector_db).__name__
+                    analysis += f"\n✅ Image and analysis stored in {db_type} vector database (category: {category})"
+                else:
+                    analysis += "\n❌ Failed to store in vector database"
+            else:
+                analysis += "\n⚠️ Vector database not available for storage"
+        
+        logger.info(f"Image analysis requested: {width}x{height} {format_type}, store={store_in_memory}")
+        
+        return analysis
+        
+    except Exception as e:
+        error_msg = f"Error analyzing image: {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+if __name__ == "__main__":
+    mcp.run()

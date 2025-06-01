@@ -64,9 +64,10 @@ class SecurePythonExecutor:
         with tempfile.NamedTemporaryFile(suffix='.py', delete=False) as temp:
             restricted_imports = self._generate_import_guard()
 
-            if "matplotlib" in self.allowed_modules:
-                matplotlib_config = "\nimport matplotlib\nmatplotlib.use('Agg')\n"
-                temp.write(matplotlib_config.encode('utf-8'))
+            # Temporarily disable automatic matplotlib import
+            # if "matplotlib" in self.allowed_modules:
+            #     matplotlib_config = "\nimport matplotlib\nmatplotlib.use('Agg')\n"
+            #     temp.write(matplotlib_config.encode('utf-8'))
 
             temp.write(restricted_imports.encode('utf-8'))
             temp.write(b"\n\n")

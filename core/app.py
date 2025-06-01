@@ -22,17 +22,7 @@ from core.long_term_memory import LongTermMemoryStore
 from core.memory_agent import MemoryEnhancedAgent, create_memory_enhanced_system_message
 
 from tools.prompt import get_prompt
-from tools.wiki_tools import create_wikipedia_tool
-from tools.search_tools import create_tavily_search_tool
-from tools.code_tools import get_code_tools
-from tools.datetime_tools import get_current_datetime, get_current_date_simple
-from tools.unified_multimodal_tools import (
-    store_text_memory,
-    store_image_memory, 
-    search_memories,
-    get_vector_db_info,
-    analyze_image_and_store
-)
+from simple_mcp_tools import get_simple_mcp_tools
 
 load_dotenv()
 
@@ -199,21 +189,10 @@ if not tavily_api_key:
 
 llm = create_anthropic_model_with_error_handling()
 
-if tavily_api_key:
-    tavily_search_tool = create_tavily_search_tool(tavily_api_key)
-
-wikipedia_tool = create_wikipedia_tool()
-code_tools = get_code_tools()
-datetime_tools = [get_current_datetime, get_current_date_simple]
-multimodal_tools = [
-    store_text_memory,
-    store_image_memory,
-    search_memories,
-    get_vector_db_info,
-    analyze_image_and_store
-]
-
-tools = [wikipedia_tool, tavily_search_tool] + code_tools + datetime_tools + multimodal_tools
+# Initialize MCP tools
+logger.info("Initializing MCP tools...")
+tools = get_simple_mcp_tools()
+logger.info(f"Loaded {len(tools)} MCP tools")
 tool_node = ToolNode(tools)
 model_with_tools = llm.bind_tools(tools)
 prompt_template = ChatPromptTemplate.from_messages([
