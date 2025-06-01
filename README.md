@@ -1,8 +1,8 @@
 # AI by Design Chatbot
 
-A powerful agentic workflow system built with FastAPI, LangGraph, and Anthropic Claude that provides an intelligent AI assistant capable of web search, Wikipedia queries, and secure code execution.
+A powerful agentic chatbot system built with FastAPI, LangGraph, and Anthropic Claude that provides an intelligent AI assistant capable of web search, Wikipedia queries, and secure code execution.
 
-https://youtu.be/O76pxx7pCjw
+[![0601-Cover](https://github.com/user-attachments/assets/f095b027-9f42-4e1f-873d-29cb1b6a677e)](https://www.youtube.com/watch?v=VIDEO_ID)
 
 ## Features
 
