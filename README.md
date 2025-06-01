@@ -576,10 +576,10 @@ User Query
 - Automatic memory extraction and retrieval
 
 ### v1.1
+- Vision, PDF support ✅
+- Canvas
 - Log-in screen with Google oAuth for sign-in
 - MCP Servers
-- Vision, PDF support
-- Canvas
   
 ### v2
 - File System
