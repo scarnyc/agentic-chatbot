@@ -2,7 +2,10 @@
 
 A powerful agentic chatbot system built with FastAPI, LangGraph, and Anthropic Claude that provides an intelligent AI assistant capable of web search, Wikipedia queries, and secure code execution.
 
-[![0601-Cover](https://github.com/user-attachments/assets/f095b027-9f42-4e1f-873d-29cb1b6a677e)](https://www.youtube.com/watch?v=VIDEO_ID)
+## 🎬 Demo
+See the AI by Design Agent in action:
+[![0601-Cover](https://github.com/user-attachments/assets/f095b027-9f42-4e1f-873d-29cb1b6a677e)](https://youtu.be/O76pxx7pCjw)
+Click the thumbnail above to watch a full demonstration of the agent's capabilities, including web search, code execution, and multi-tool workflows.
 
 ## Features
 
