@@ -1,8 +1,11 @@
-# AI by Design Agent
+# AI by Design Chatbot
 
-A powerful agentic workflow system built with FastAPI, LangGraph, and Anthropic Claude that provides an intelligent AI assistant capable of web search, Wikipedia queries, and secure code execution.
+A powerful agentic chatbot system built with FastAPI, LangGraph, and Anthropic Claude that provides an intelligent AI assistant capable of web search, Wikipedia queries, and secure code execution.
 
-<img width="974" alt="Screenshot 2025-05-22 at 5 11 00 PM" src="https://github.com/user-attachments/assets/c9b766dc-5708-4473-88cc-19a6063fad74" />
+## 🎬 Demo
+See the AI by Design Agent in action:
+[![0601-Cover](https://github.com/user-attachments/assets/f095b027-9f42-4e1f-873d-29cb1b6a677e)](https://youtu.be/O76pxx7pCjw)
+Click the thumbnail above to watch a full demonstration of the agent's capabilities, including web search, code execution, and multi-tool workflows.
 
 ## Features
 
@@ -626,22 +629,6 @@ The UI uses CSS custom properties for easy theming:
 - **Scientific notation**: Prevents UI overflow
 - **Precision control**: Balanced accuracy and performance
 
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-### Development Guidelines
-
-- Follow PEP 8 style guidelines
-- Add docstrings to all functions
-- Include type hints where appropriate
-- Write tests for new functionality
-- Update documentation for API changes
-
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
@@ -654,25 +641,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **FastAPI** for modern web framework
 - **Community** for inspiration and feedback
 
-## Architecture Diagram
-
-```
-User Query
-    │
-    ▼
-┌───────────────┐
-│ Agent         │
-│ (Claude 4)    │
-└───────────────┘
-    │
-    ├─────────────────┬─────────────────┐
-    │                 │                 │
-    ▼                 ▼                 ▼
-┌─────────────┐  ┌─────────────┐  ┌─────────────┐
-│Tavily Search│  │Python REPL  │  │Wikipedia API│
-└─────────────┘  └─────────────┘  └─────────────┘
-
-```
 ## Roadmap
 
 ### v0 ✅ 
@@ -691,16 +659,15 @@ User Query
 - Vision, PDF support ✅
 - Canvas
 - Log-in screen with Google oAuth for sign-in
-- MCP Servers
-  
+- MCP Servers  ✅
+- Support for GPT-4o for writing via MCP ✅
+
 ### v2
 - File System
 - Human in the loop (stop and ask for input)
 - Evals (https://docs.anthropic.com/en/docs/test-and-evaluate/strengthen-guardrails/reduce-hallucinations)
 - RL fine-tuning with GRPO w/ thumbs up and thumbs down user feedback
-- Support for GPT 4.1 for writing (Tool Call)
 - Persist user Chat history (UI)
-
 
 ### v3
 - Planning: research, generation, reflection
@@ -720,7 +687,4 @@ User Query
 - chatterbox.ai voice integration
 
 ---
-
 **Built with ❤️ for intelligent automation**
-
-For support or questions, please open an issue on GitHub.
