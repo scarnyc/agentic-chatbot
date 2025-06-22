@@ -210,6 +210,130 @@ async def upload_file(
         logger.error(f"File upload error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to process file: {str(e)}")
 
+@app.post("/api/batch-upload")
+async def batch_upload_files(
+    directory_path: str = Form(...),
+    conversation_id: str = Form(...)
+):
+    """Handle batch upload and processing of files from a directory."""
+    try:
+        # Validate conversation exists
+        if conversation_id not in conversations:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        
+        # Validate directory exists
+        if not os.path.exists(directory_path) or not os.path.isdir(directory_path):
+            raise HTTPException(status_code=400, detail="Directory path does not exist or is not a directory")
+        
+        # Find all supported files in directory
+        supported_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf'}
+        files_found = []
+        
+        for filename in os.listdir(directory_path):
+            file_path = os.path.join(directory_path, filename)
+            if (os.path.isfile(file_path) and 
+                any(filename.lower().endswith(ext) for ext in supported_extensions)):
+                files_found.append((filename, file_path))
+        
+        if not files_found:
+            raise HTTPException(
+                status_code=400, 
+                detail="No supported files found in directory (supported: JPG, PNG, GIF, WebP, PDF)"
+            )
+        
+        # Create output directory
+        output_dir = os.path.join(directory_path, "output")
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Process files in batch
+        processed_files = []
+        errors = []
+        
+        for filename, file_path in files_found:
+            try:
+                # Read file content
+                with open(file_path, 'rb') as f:
+                    file_content = f.read()
+                
+                # Validate file size (10MB limit)
+                max_size = 10 * 1024 * 1024  # 10MB
+                if len(file_content) > max_size:
+                    errors.append(f"{filename}: File size too large (>10MB)")
+                    continue
+                
+                # Determine file type
+                file_extension = filename.lower().split('.')[-1] if '.' in filename else ''
+                
+                if file_extension in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
+                    analysis = await process_image_file(file_content, filename, f"Analyze this image: {filename}")
+                elif file_extension == 'pdf':
+                    analysis = await process_pdf_file(file_content, filename, f"Analyze this PDF: {filename}")
+                else:
+                    errors.append(f"{filename}: Unsupported file type")
+                    continue
+                
+                # Write analysis to text file
+                base_name = os.path.splitext(filename)[0]
+                output_filename = f"{base_name}_analysis.txt"
+                output_path = os.path.join(output_dir, output_filename)
+                
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write(analysis)
+                
+                processed_files.append({
+                    "original_filename": filename,
+                    "output_filename": output_filename,
+                    "output_path": output_path,
+                    "analysis": analysis
+                })
+                
+            except Exception as e:
+                errors.append(f"{filename}: {str(e)}")
+        
+        if not processed_files:
+            raise HTTPException(
+                status_code=500, 
+                detail=f"No files were processed successfully. Errors: {'; '.join(errors)}"
+            )
+        
+        # Add batch processing message to conversation
+        batch_message = f"Batch process {len(files_found)} files from directory: {directory_path}"
+        success_message = f"SUCCESS! Processed {len(processed_files)} files. Output saved to: {output_dir}"
+        
+        if errors:
+            success_message += f"\n\nErrors encountered: {'; '.join(errors)}"
+        
+        # Show example of one analysis
+        example_analysis = processed_files[0]["analysis"] if processed_files else "No successful analyses"
+        success_message += f"\n\nExample analysis ({processed_files[0]['original_filename']}):\n{example_analysis[:500]}..."
+        
+        conversations[conversation_id].messages.append({
+            "role": "user", 
+            "content": batch_message
+        })
+        conversations[conversation_id].messages.append({
+            "role": "assistant",
+            "content": success_message
+        })
+        
+        logger.info(f"Batch processed {len(processed_files)} files from {directory_path}")
+        
+        return JSONResponse(content={
+            "message": "SUCCESS!",
+            "processed_count": len(processed_files),
+            "total_files": len(files_found),
+            "output_directory": output_dir,
+            "processed_files": [f["original_filename"] for f in processed_files],
+            "errors": errors,
+            "example_analysis": example_analysis
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Batch upload error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to process batch upload: {str(e)}")
+
 async def process_image_file(file_content: bytes, filename: str, user_message: Optional[str]) -> str:
     """Process uploaded image file using direct Anthropic Vision API."""
     try:

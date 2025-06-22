@@ -35,6 +35,9 @@
                         <button id="upload-button" class="upload-button" title="Upload image or PDF">
                             <i class="fas fa-paperclip"></i>
                         </button>
+                        <button id="batch-upload-button" class="batch-upload-button" title="Batch upload from directory">
+                            <i class="fas fa-folder-open"></i>
+                        </button>
                         <button id="send-button" class="send-button">
                             <i class="fas fa-paper-plane"></i>
                         </button>
@@ -56,6 +59,35 @@
         </footer>
     </div>
 
+    <!-- Batch Upload Modal -->
+    <div id="batch-upload-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Batch Upload from Directory</h3>
+                <button id="close-batch-modal" class="close-button">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Enter the full path to a directory containing images or PDFs to process in batch:</p>
+                <input type="text" id="directory-path" placeholder="/path/to/your/directory" class="directory-input">
+                <div class="batch-info">
+                    <p><strong>Supported formats:</strong> JPG, PNG, GIF, WebP, PDF</p>
+                    <p><strong>Output:</strong> Analysis results will be saved as .txt files in an 'output' folder within your directory</p>
+                    <p><strong>Size limit:</strong> 10MB per file</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancel-batch" class="cancel-button">Cancel</button>
+                <button id="start-batch" class="start-batch-button">Start Batch Processing</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        console.log('=== INLINE SCRIPT TEST ===');
+        console.log('Basic JavaScript is working');
+    </script>
     <script src="/static/js/app.js"></script>
 </body>
 </html>
